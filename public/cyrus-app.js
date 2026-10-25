@@ -360,6 +360,45 @@
     return html;
   }
 
+
+  async function readEdgeResponse(response) {
+    const raw = await response.text();
+    const contentType = (response.headers && response.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("text/event-stream") || /^\s*(?:event:[^\n]*\n\s*)?data:/m.test(raw)) {
+      let answer = "";
+      const blocks = raw.replace(/\r\n/g, "\n").split("\n\n");
+      for (const block of blocks) {
+        const dataLines = block.split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim());
+        if (!dataLines.length) continue;
+        const payload = dataLines.join("\n").trim();
+        if (!payload || payload === "[DONE]") break;
+        let event;
+        try {
+          event = JSON.parse(payload);
+        } catch (_) {
+          throw new Error("The AI service sent malformed streaming data. Please retry.");
+        }
+        if (event.type === "delta" && typeof event.text === "string") answer += event.text;
+        else if (event.type === "reset") answer = "";
+        else if (event.type === "error") throw new Error(event.message || "The AI service could not complete this request.");
+        else if (event.type === "done") break;
+      }
+      if (!answer.trim()) throw new Error("The AI service returned an empty response.");
+      return answer.trim();
+    }
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (_) {
+      throw new Error("The AI service returned an unexpected response. Please retry.");
+    }
+    if (data && typeof data.error === "string" && data.error.trim()) throw new Error(data.error);
+    return data && (data.reply || data.answer || data.response || data.text || data.message || data.content) || null;
+  }
+
   async function callAIProvider(userMessage, historyForApi) {
     if (window.CyrusProvider && typeof window.CyrusProvider.call === "function") {
       return await window.CyrusProvider.call(
@@ -412,8 +451,10 @@
       throw new Error("Edge Function " + response.status + ": " + errText.slice(0, 250));
     }
 
-    const data = await response.json();
-    return data.answer || data.response || data.text || data.message || data.content || null;
+    if (window.CyrusProvider && typeof window.CyrusProvider.parseResponse === "function") {
+      return await window.CyrusProvider.parseResponse(response);
+    }
+    return await readEdgeResponse(response);
   }
 
   function showWelcomeState() {

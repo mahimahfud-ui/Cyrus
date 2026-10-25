@@ -924,7 +924,7 @@ function providerRuntimeGuidance(provider: string, task: string): string {
         ? "This is the OpenRouter Free router; the exact upstream model may be selected dynamically and is not exposed to this app."
         : "This is the model route configured for OpenRouter; the actual upstream route may be subject to OpenRouter availability."
     },
-    huggingface: { label: "Hugging Face (Dolphin)", model: envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B", qualification: "Hugging Face Inference Providers only works when the selected model is available through a configured provider; availability and pricing depend on provider support and quotas." },
+    huggingface: { label: "Hugging Face (Dolphin)", model: envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "dphn/Dolphin3.0-Llama3.1-8B", qualification: "Hugging Face Inference Providers only works when the selected model is available through a configured provider; availability and pricing depend on provider support and quotas." },
     shannon: { label: "Shannon AI", model: envFirst(["SHANNON_MODEL"]) || "shannon-3" },
     deepseek: { label: "DeepSeek", model: envFirst(["DEEPSEEK_MODEL"]) || "deepseek-flash" },
     nvidia: {
@@ -1818,7 +1818,7 @@ async function callProvider(name: string, messages: ChatMessage[], task: string,
   if (name === "huggingface") {
     const key = envFirst(["HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN"]);
     if (!key) throw new Error("Not configured");
-    const model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B";
+    const model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "dphn/Dolphin3.0-Llama3.1-8B";
     const endpoint = envFirst(["HF_BASE_URL"]) || "https://router.huggingface.co/v1/chat/completions";
     return { text: await openAICompatible(name, endpoint, key, model, messages, {}, timeoutMs, systemOverride), provider: name };
   }
@@ -2220,7 +2220,7 @@ async function startProviderStream(name: string, messages: ChatMessage[], task: 
     if (!key) { cleanup(); throw new Error("Not configured"); }
     headers.Authorization = "Bearer " + key;
     let model = "";
-    if (name === "huggingface") model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B";
+    if (name === "huggingface") model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "dphn/Dolphin3.0-Llama3.1-8B";
     else if (name === "shannon") model = envFirst(["SHANNON_MODEL"]) || "shannon-3";
     else if (name === "groq") model = envFirst(["GROQ_MODEL"]) || "openai/gpt-oss-20b";
     else if (name === "openrouter") model = openRouterModel(task);

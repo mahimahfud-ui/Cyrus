@@ -16,7 +16,7 @@ The public-facing product name is **MahiCloud**. The existing GitHub repository 
 - Frontend: static HTML/CSS/JavaScript in `public/`.
 - Authentication and data: Supabase Auth guest sessions and Postgres tables with Row Level Security.
 - AI backend: Supabase Edge Function `mahi-ai-chat`. Provider selection happens on the server; the UI never receives the provider name or API key.
-- Providers supported by the router: Google Gemini, Groq, OpenRouter, Shannon AI, Mistral, NVIDIA, Cloudflare, DeepSeek, OpenAI, Anthropic, and Venice AI. Provider eligibility is decided server-side; provider names and keys are never sent to the browser. A provider with a configured server-side API key is eligible for the fallback cascade; preferred providers are tried first and additional configured routes are attempted when earlier routes fail, time out, or cool down. Some providers may charge for fallback usage.
+- Providers supported by the router: Google Gemini, Groq, Hugging Face (configurable Dolphin/model endpoint), OpenRouter, Shannon AI, Mistral, NVIDIA, Cloudflare, DeepSeek, OpenAI, Anthropic, and Venice AI. Provider eligibility is decided server-side; provider names and keys are never sent to the browser. A provider with a configured server-side API key is eligible for the fallback cascade; preferred providers are tried first and additional configured routes are attempted when earlier routes fail, time out, or cool down. Some providers may charge for fallback usage.
 - Hosting: Node 18+; `npm start` serves the frontend. `render.yaml` configures Render to deploy commits on `main`.
 
 ## Supabase setup
@@ -32,6 +32,9 @@ Recommended free-tier provider secrets (add one or more):
 - `GROQ_API_KEY` — [Groq Console](https://console.groq.com/keys)
 - `OPENROUTER_API_KEY` — [OpenRouter](https://openrouter.ai/settings/keys)
 - `MISTRAL_API_KEY` — [Mistral La Plateforme](https://console.mistral.ai/api-keys)
+- `HF_TOKEN` — [Hugging Face access tokens](https://huggingface.co/settings/tokens) (token needs inference permissions). Also set `HF_MODEL_ID` to the exact model ID. Optional `HF_BASE_URL` overrides the default Hugging Face Inference Providers endpoint for a separately hosted OpenAI-compatible endpoint.
+
+> **Dolphin hosting note:** Hugging Face Inference Providers only serves models currently available through its provider network. Dolphin may not be deployed there; if the selected Dolphin model is unavailable, configure a compatible hosted inference endpoint and set `HF_BASE_URL`, `HF_MODEL_ID`, and `HF_TOKEN`. Dedicated GPU endpoints can cost money; adding a token alone does not host model weights or guarantee free inference. See [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/index).
 
 Configured fallback keys:
 - `DEEPSEEK_API_KEY` (or legacy `DeepSeek`), `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` activate these providers as later fallback routes. The coding route keeps OpenAI nearer the front of the chain. These APIs may be paid; review pricing and account limits before use.

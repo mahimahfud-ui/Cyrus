@@ -1,3 +1,4 @@
+# Re-trigger import workflow through a standard GitHub content commit.
 name: Import full Cyrus application from ZIP
 
 on:

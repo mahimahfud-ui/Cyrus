@@ -1,0 +1,218 @@
+name: Import full Cyrus application from ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cyrus-complete.zip"
+      - ".github/workflows/import-cyrus-zip.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-zip:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Extract ZIP, validate project, and sync source files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import shutil
+          import subprocess
+          import tempfile
+          import zipfile
+          from pathlib import Path
+
+          repo = Path.cwd().resolve()
+          archive = repo / "cyrus-complete.zip"
+          if not archive.is_file():
+              raise SystemExit("cyrus-complete.zip is missing from the repository root")
+
+          tmp = Path(tempfile.mkdtemp(prefix="cyrus-import-")).resolve()
+          extracted = tmp / "unzipped"
+          extracted.mkdir()
+
+          with zipfile.ZipFile(archive) as zf:
+              bad = zf.testzip()
+              if bad:
+                  raise SystemExit(f"ZIP integrity check failed at: {bad}")
+              for info in zf.infolist():
+                  target = (extracted / info.filename).resolve()
+                  if target != extracted and extracted not in target.parents:
+                      raise SystemExit(f"Unsafe path inside ZIP: {info.filename}")
+                  if info.is_dir():
+                      target.mkdir(parents=True, exist_ok=True)
+                      continue
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with zf.open(info, "r") as src, open(target, "wb") as dst:
+                      shutil.copyfileobj(src, dst)
+
+          candidates = []
+          for pkg_path in extracted.rglob("package.json"):
+              project = pkg_path.parent
+              if (project / "server.js").is_file() and (project / "public" / "index.html").is_file():
+                  candidates.append(project)
+
+          if not candidates:
+              raise SystemExit(
+                  "ZIP extracted, but no project folder containing package.json, "
+                  "server.js, and public/index.html was found. Repository was not replaced."
+              )
+
+          # Prefer the shallowest complete project, then one with a Render config.
+          candidates.sort(key=lambda p: (len(p.relative_to(extracted).parts),
+                                        not (p / "render.yaml").is_file(),
+                                        str(p)))
+          source = candidates[0]
+          with open(source / "package.json", encoding="utf-8") as f:
+              package = json.load(f)
+          if not isinstance(package.get("scripts"), dict) or not package["scripts"].get("start"):
+              raise SystemExit("The ZIP project's package.json must define scripts.start")
+
+          print("Validated app root:", source.relative_to(extracted))
+          print("Package:", package.get("name", "(unnamed)"), "version:", package.get("version", "(unspecified)"))
+
+          excluded_names = {".git", "node_modules", "__MACOSX", ".DS_Store", "cyrus-complete.zip"}
+
+          def skip_path(rel):
+              parts = set(rel.parts)
+              if parts & excluded_names:
+                  return True
+              name = rel.name
+              # Never import local credential files from an archive.
+              if name == ".env" or (name.startswith(".env.") and name not in {".env.example", ".env.sample"}):
+                  return True
+              return False
+
+          def clear_dir(path, preserve_names=()):
+              path.mkdir(parents=True, exist_ok=True)
+              for child in list(path.iterdir()):
+                  if child.name in preserve_names:
+                      continue
+                  if child.is_dir() and not child.is_symlink():
+                      shutil.rmtree(child)
+                  else:
+                      child.unlink()
+
+          def copy_contents(src, dst, preserve_relpaths=()):
+              preserve_relpaths = set(preserve_relpaths)
+              for current, dirs, files in os.walk(src):
+                  current_path = Path(current)
+                  rel_dir = current_path.relative_to(src)
+                  dirs[:] = [d for d in dirs if not skip_path(rel_dir / d)]
+                  target_dir = dst / rel_dir
+                  target_dir.mkdir(parents=True, exist_ok=True)
+                  for filename in files:
+                      rel = rel_dir / filename
+                      if skip_path(rel) or rel.as_posix() in preserve_relpaths:
+                          continue
+                      source_file = current_path / filename
+                      target_file = dst / rel
+                      target_file.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(source_file, target_file)
+
+          # Keep the archive, supplied implementation docs, git metadata, and
+          # this importer workflow. Replace stale scaffold files with the ZIP project.
+          protected = {
+              ".git", "cyrus-complete.zip", "cyrus-rebuild", ".github",
+              "CYRUS-IMPLEMENTATION-GUIDE.md", "DELIVERY-SUMMARY.txt",
+              "INDEX.md", "START-HERE.md", "VERIFICATION-CHECKLIST.md",
+          }
+          source_names = {
+              p.name for p in source.iterdir()
+              if not skip_path(Path(p.name)) and p.name != ".github"
+          }
+          for existing in list(repo.iterdir()):
+              if existing.name in protected or existing.name in source_names:
+                  continue
+              if existing.name == ".gitignore":
+                  continue
+              if existing.is_dir() and not existing.is_symlink():
+                  shutil.rmtree(existing)
+              elif existing.is_file() or existing.is_symlink():
+                  existing.unlink()
+
+          # Sync project files to the Render service's repository root.
+          for item in source.iterdir():
+              name = item.name
+              if name in excluded_names or name == "cyrus-complete.zip":
+                  continue
+              if name == ".env" or (name.startswith(".env.") and name not in {".env.example", ".env.sample"}):
+                  continue
+              if name == ".github":
+                  continue
+              dest = repo / name
+              if item.is_dir():
+                  if dest.exists():
+                      shutil.rmtree(dest)
+                  copy_contents(item, dest)
+              else:
+                  shutil.copy2(item, dest)
+
+          # Merge workflows from the ZIP but never overwrite this importer.
+          src_github = source / ".github"
+          dst_github = repo / ".github"
+          if src_github.is_dir():
+              for current, dirs, files in os.walk(src_github):
+                  current_path = Path(current)
+                  rel_dir = current_path.relative_to(src_github)
+                  dirs[:] = [d for d in dirs if not skip_path(rel_dir / d)]
+                  (dst_github / rel_dir).mkdir(parents=True, exist_ok=True)
+                  for filename in files:
+                      rel = rel_dir / filename
+                      if skip_path(rel) or rel.as_posix() == "workflows/import-cyrus-zip.yml":
+                          continue
+                      dest = dst_github / rel
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(current_path / filename, dest)
+
+          # Keep cyrus-rebuild as a full, separately browsable copy of the ZIP project.
+          mirror = repo / "cyrus-rebuild"
+          clear_dir(mirror)
+          copy_contents(source, mirror, preserve_relpaths={"workflows/import-cyrus-zip.yml"})
+
+          # Verify entry points before allowing the import to be committed.
+          root_package = json.loads((repo / "package.json").read_text(encoding="utf-8"))
+          if not (repo / "server.js").is_file() or not (repo / "public" / "index.html").is_file():
+              raise SystemExit("Post-sync source verification failed")
+          if not root_package.get("scripts", {}).get("start"):
+              raise SystemExit("Post-sync package.json is missing scripts.start")
+          print("Project source synced. Root files:", ", ".join(sorted(p.name for p in repo.iterdir())))
+          PY
+
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+          node --check server.js
+
+      - name: Commit imported source files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The ZIP content already matches the repository."
+          else
+            git commit -m "Import full chatbot source from cyrus-complete.zip"
+            git push origin HEAD:main
+          fi

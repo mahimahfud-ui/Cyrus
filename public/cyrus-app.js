@@ -1,5 +1,5 @@
 /** ============================================================================
- * CYRUS - AI CHATBOT — FULLY UNLOCKED (send-fixed)
+ * CYRUS - AI CHATBOT — FULLY UNLOCKED (messages[] body fix)
  * ========================================================================= */
 
 (() => {
@@ -86,7 +86,6 @@
       await loadConversations();
     } catch (error) {
       console.warn("Supabase init warning:", error);
-      // Do NOT block send — local mode still works
     }
     showWelcomeState();
     console.log("✅ Cyrus ready (unlocked)");
@@ -133,7 +132,7 @@
       }
       const { data: anonData, error: anonError } = await state.supabaseClient.auth.signInAnonymously();
       if (anonError) {
-        console.warn("Anonymous sign-in failed (tables may still work with anon key):", anonError.message);
+        console.warn("Anonymous sign-in failed:", anonError.message);
         return;
       }
       state.currentUser = anonData.session.user;
@@ -202,7 +201,6 @@
   }
 
   async function startNewConversation() {
-    // Soft — if DB unavailable we just use local session
     if (!state.supabaseClient || !state.currentUser) {
       state.currentConversationId = "local-" + Date.now();
       state.messages = [];
@@ -242,7 +240,6 @@
         await startNewConversation();
       }
 
-      // Save user message (best-effort)
       const userMsg = { role: "user", content: text.trim() };
       if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
         try {
@@ -274,7 +271,13 @@
       addLoadingMessage();
       scrollToBottom();
 
-      const response = await callAIProvider(text.trim());
+      // Pass history WITHOUT the just-added user message (adapter will append it)
+      const historyForApi = state.messages
+        .slice(0, -1)
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const response = await callAIProvider(text.trim(), historyForApi);
 
       if (response) {
         const assistantMsg = { role: "assistant", content: response };
@@ -357,19 +360,16 @@
     return html;
   }
 
-  async function callAIProvider(userMessage) {
-    // Prefer unlocked adapter
+  async function callAIProvider(userMessage, historyForApi) {
     if (window.CyrusProvider && typeof window.CyrusProvider.call === "function") {
-      const history = state.messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({ role: m.role, content: m.content }));
       return await window.CyrusProvider.call(
         userMessage,
-        history,
+        historyForApi || [],
         preferences.systemInstructions || ""
       );
     }
 
+    // Fallback — same messages[] contract as Edge Function
     const cfg = getCfg();
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       throw new Error("Supabase config missing");
@@ -385,6 +385,12 @@
       }
     } catch (_) {}
 
+    const prior = (historyForApi || [])
+      .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m) => ({ role: m.role, content: String(m.content) }));
+    while (prior.length && prior[prior.length - 1].role === "user") prior.pop();
+    const messages = prior.concat([{ role: "user", content: String(userMessage) }]);
+
     const url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/mahi-ai-chat";
     const response = await fetch(url, {
       method: "POST",
@@ -394,9 +400,9 @@
         apikey: cfg.supabaseAnonKey
       },
       body: JSON.stringify({
-        message: userMessage,
-        history: state.messages.map((m) => ({ role: m.role, content: m.content })),
-        system_instructions: preferences.systemInstructions || undefined
+        messages: messages,
+        custom_instructions: preferences.systemInstructions || undefined,
+        temporary_chat: false
       }),
       signal: state.abortController ? state.abortController.signal : undefined
     });
@@ -489,7 +495,6 @@
     }
     if (ui.errorClose) ui.errorClose.addEventListener("click", hideError);
 
-    // Suggested prompts
     document.querySelectorAll(".prompt-suggestion").forEach((btn) => {
       btn.addEventListener("click", () => {
         const prompt = btn.getAttribute("data-prompt");

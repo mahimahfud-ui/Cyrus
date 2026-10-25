@@ -772,6 +772,7 @@ function providerIsConfigured(name: string, task = "general"): boolean {
   // This avoids silently ignoring keys because a separate ENABLE_* flag was absent.
   if (name === "gemini") return configuredSecret(["GEMINI_API_KEY", "GOOGLE_GEMINI_API_KEY"]);
   if (name === "groq") return configuredSecret(["GROQ_API_KEY"]);
+  if (name === "huggingface") return configuredSecret(["HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN"]);
   if (name === "openrouter") return configuredSecret(["OPENROUTER_API_KEY"]);
   if (name === "cloudflare") return configuredSecret(["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_KEY", "Cloudflare"]);
   if (name === "shannon") return configuredSecret(["SHANNON_API_KEY", "SHANNONAI_API_KEY", "SHANNON_AI_API_KEY", "Shannon AI"]);
@@ -856,25 +857,25 @@ function providerOrder(task: string, hasInlineAttachments = false, hasInlineImag
   let preferred: string[];
   if (isPornRelatedPrompt(prompt) && !hasInlineAttachments) {
     // Uncensored: OpenRouter first, then Venice
-    preferred = ["openrouter", "venice", "groq", "mistral", "deepseek", "gemini", "shannon", "nvidia", "cloudflare", "anthropic", "openai"];
+    preferred = ["openrouter", "venice", "groq", "huggingface", "mistral", "deepseek", "gemini", "shannon", "nvidia", "cloudflare", "anthropic", "openai"];
   } else if (hasInlineAttachments) {
-    preferred = ["gemini", "openrouter", "shannon", "deepseek", "groq", "nvidia", "cloudflare", "mistral", "venice", "anthropic", "openai"];
-    if (!hasInlineImages) preferred = ["gemini", "groq", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
+    preferred = ["gemini", "openrouter", "shannon", "deepseek", "groq", "huggingface", "nvidia", "cloudflare", "mistral", "venice", "anthropic", "openai"];
+    if (!hasInlineImages) preferred = ["gemini", "groq", "huggingface", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
   } else if (task === "coding") {
-    preferred = ["groq", "gemini", "openrouter", "openai", "venice", "shannon", "deepseek", "nvidia", "cloudflare", "mistral", "anthropic"];
+    preferred = ["groq", "huggingface", "gemini", "openrouter", "openai", "venice", "shannon", "deepseek", "nvidia", "cloudflare", "mistral", "anthropic"];
   } else if (task === "web_research" || task === "code_execution") {
-    preferred = ["gemini", "openrouter", "groq", "venice", "shannon", "deepseek", "nvidia", "cloudflare", "mistral", "anthropic", "openai"];
+    preferred = ["gemini", "openrouter", "groq", "huggingface", "venice", "shannon", "deepseek", "nvidia", "cloudflare", "mistral", "anthropic", "openai"];
   } else if (task === "reasoning") {
-    preferred = ["gemini", "openrouter", "shannon", "groq", "deepseek", "nvidia", "cloudflare", "mistral", "venice", "anthropic", "openai"];
+    preferred = ["gemini", "openrouter", "shannon", "groq", "huggingface", "deepseek", "nvidia", "cloudflare", "mistral", "venice", "anthropic", "openai"];
   } else if (task === "creative") {
     preferred = ["gemini", "groq", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
   } else {
-    preferred = ["groq", "gemini", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
+    preferred = ["groq", "huggingface", "gemini", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
   }
 
   const fallback = isPornRelatedPrompt(prompt) && !hasInlineAttachments
-    ? ["openrouter", "venice", "groq", "mistral", "deepseek", "gemini", "shannon", "nvidia", "cloudflare", "anthropic", "openai"]
-    : ["gemini", "groq", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
+    ? ["openrouter", "venice", "groq", "huggingface", "mistral", "deepseek", "gemini", "shannon", "nvidia", "cloudflare", "anthropic", "openai"]
+    : ["gemini", "groq", "huggingface", "openrouter", "cloudflare", "shannon", "deepseek", "nvidia", "mistral", "venice", "anthropic", "openai"];
   // FULL UNLOCK: no provider is excluded. Every configured provider is eligible
   // for every task, attachments and porn prompts included.
   const configured = [...new Set([...preferred, ...fallback])]
@@ -923,6 +924,7 @@ function providerRuntimeGuidance(provider: string, task: string): string {
         ? "This is the OpenRouter Free router; the exact upstream model may be selected dynamically and is not exposed to this app."
         : "This is the model route configured for OpenRouter; the actual upstream route may be subject to OpenRouter availability."
     },
+    huggingface: { label: "Hugging Face (Dolphin)", model: envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B", qualification: "Hugging Face Inference Providers only works when the selected model is available through a configured provider; availability and pricing depend on provider support and quotas." },
     shannon: { label: "Shannon AI", model: envFirst(["SHANNON_MODEL"]) || "shannon-3" },
     deepseek: { label: "DeepSeek", model: envFirst(["DEEPSEEK_MODEL"]) || "deepseek-flash" },
     nvidia: {
@@ -1813,6 +1815,13 @@ async function callGemini(messages: ChatMessage[], task: string, timeoutMs = 450
 }
 async function callProvider(name: string, messages: ChatMessage[], task: string, timeoutMs = 45000, systemOverride?: string): Promise<{ text: string; provider: string }> {
   if (name === "gemini") return { text: await callGemini(messages, task, timeoutMs, systemOverride), provider: name };
+  if (name === "huggingface") {
+    const key = envFirst(["HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN"]);
+    if (!key) throw new Error("Not configured");
+    const model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B";
+    const endpoint = envFirst(["HF_BASE_URL"]) || "https://router.huggingface.co/v1/chat/completions";
+    return { text: await openAICompatible(name, endpoint, key, model, messages, {}, timeoutMs, systemOverride), provider: name };
+  }
   if (name === "shannon") {
     const key = envFirst(["SHANNON_API_KEY", "SHANNONAI_API_KEY", "SHANNON_AI_API_KEY", "Shannon AI"]);
     if (!key) throw new Error("Not configured");
@@ -2176,7 +2185,8 @@ async function startProviderStream(name: string, messages: ChatMessage[], task: 
     useAnthropic = true;
   } else {
     let key = "";
-    if (name === "shannon") {
+    if (name === "huggingface") { key = envFirst(["HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN"]); url = envFirst(["HF_BASE_URL"]) || "https://router.huggingface.co/v1/chat/completions"; }
+    else if (name === "shannon") {
       key = envFirst(["SHANNON_API_KEY", "SHANNONAI_API_KEY", "SHANNON_AI_API_KEY", "Shannon AI"]);
       url = "https://api.shannon-ai.com/v1/chat/completions";
     } else if (name === "groq") { key = envFirst(["GROQ_API_KEY"]); url = "https://api.groq.com/openai/v1/chat/completions"; }
@@ -2210,7 +2220,8 @@ async function startProviderStream(name: string, messages: ChatMessage[], task: 
     if (!key) { cleanup(); throw new Error("Not configured"); }
     headers.Authorization = "Bearer " + key;
     let model = "";
-    if (name === "shannon") model = envFirst(["SHANNON_MODEL"]) || "shannon-3";
+    if (name === "huggingface") model = envFirst(["HF_MODEL_ID", "HUGGINGFACE_MODEL"]) || "cognitivecomputations/Dolphin3.0-Llama3.1-8B";
+    else if (name === "shannon") model = envFirst(["SHANNON_MODEL"]) || "shannon-3";
     else if (name === "groq") model = envFirst(["GROQ_MODEL"]) || "openai/gpt-oss-20b";
     else if (name === "openrouter") model = openRouterModel(task);
     else if (name === "deepseek") model = envFirst(["DEEPSEEK_MODEL"]) || "deepseek-flash";

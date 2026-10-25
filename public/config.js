@@ -2,8 +2,8 @@
    Public browser config only. Never put provider API keys or service-role keys here. */
 
 window.CYRUS_CONFIG = {
-  supabaseUrl: "https://husydmiujigyonlxbuuj.supabase.co",
-  supabaseAnonKey: "sb_publishable_zzAitNIGOutgaS5EGZKfrQ_osRrlu8U",
+  supabaseUrl: "https://rpjqghibyzfldqlrxfna.supabase.co",
+  supabaseAnonKey: "sb_publishable_yHJ0gMPyT2zFJShlkLxb6A_07mOQv3-",
   features: {
     conversations: true,
     memory: true,

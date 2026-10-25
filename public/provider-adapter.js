@@ -2,7 +2,7 @@
  * AI PROVIDER ADAPTER FOR CYRUS — FULLY UNLOCKED
  *
  * Routes all chat through the unlocked Supabase Edge Function `mahi-ai-chat`.
- * Provider keys stay server-side only. No client-side provider locks.
+ * Body shape must match the Edge Function: { messages: [{role, content}, ...] }
  * ========================================================================= */
 
 (() => {
@@ -35,14 +35,22 @@
       }
     } catch (_) {}
 
+    // Edge Function contract: messages array, last item must be role=user
+    const prior = (conversationHistory || [])
+      .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m) => ({ role: m.role, content: String(m.content) }));
+
+    // Drop trailing user messages so the new one is last
+    while (prior.length && prior[prior.length - 1].role === "user") {
+      prior.pop();
+    }
+
+    const messages = prior.concat([{ role: "user", content: String(userMessage) }]);
+
     const body = {
-      message: userMessage,
-      history: (conversationHistory || []).map((m) => ({
-        role: m.role,
-        content: m.content
-      })),
-      system_instructions: systemInstructions || undefined,
-      stream: false
+      messages: messages,
+      custom_instructions: systemInstructions || undefined,
+      temporary_chat: false
     };
 
     const url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/mahi-ai-chat";

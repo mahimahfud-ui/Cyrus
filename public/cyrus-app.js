@@ -367,7 +367,7 @@
     // Check if AI provider is configured
     const hasProvider = isAIProviderConfigured();
     if (!hasProvider) {
-      showError("AI provider is not configured. Grok or ChatGPT integration is required.");
+      showError("No AI provider is connected to Cyrus. It is intentionally fresh and unconfigured.");
       return;
     }
 

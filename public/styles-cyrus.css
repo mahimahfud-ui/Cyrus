@@ -1346,3 +1346,39 @@ select:focus-visible {
     outline-offset: 1px;
   }
 }
+
+
+/* Attachment chips keep long filenames from stretching the composer on mobile. */
+.attachment-list:empty { display: none; }
+.attachment-item { max-width: 100%; min-width: 0; }
+.attachment-name {
+  display: inline-block; min-width: 0; max-width: min(40vw, 280px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.attachment-size {
+  flex: 0 0 auto; color: var(--color-text-tertiary);
+  font-size: var(--font-size-12); white-space: nowrap;
+}
+.attachment-remove {
+  min-width: 26px; min-height: 26px; display: inline-flex;
+  align-items: center; justify-content: center;
+  border-radius: var(--border-radius-4); font-size: 1.1rem;
+}
+.attachment-remove:disabled, .action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.message-attachments { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.message-attachment {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  max-width: min(100%, 360px); padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border); border-radius: var(--border-radius-6);
+  background: var(--color-surface-secondary); color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+}
+.message-attachment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message-attachment-size { flex: 0 0 auto; color: var(--color-text-tertiary); }
+@media (max-width: 480px) {
+  .attachment-name { max-width: 42vw; }
+  .composer-container {
+    padding-left: max(var(--space-3), env(safe-area-inset-left));
+    padding-right: max(var(--space-3), env(safe-area-inset-right));
+  }
+}

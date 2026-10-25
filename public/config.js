@@ -1,10 +1,9 @@
-/* Cyrus — FULLY UNLOCKED config.
-   Fill in your Supabase project URL + anon key below.
-   Provider API keys must stay in Supabase Edge Function secrets only. */
+/* Cyrus — FULLY UNLOCKED
+   Public browser config only. Never put provider API keys or service-role keys here. */
 
 window.CYRUS_CONFIG = {
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  supabaseUrl: "https://husydmiujigyonlxbuuj.supabase.co",
+  supabaseAnonKey: "sb_publishable_zzAitNIGOutgaS5EGZKfrQ_osRrlu8U",
   features: {
     conversations: true,
     memory: true,

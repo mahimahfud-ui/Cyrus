@@ -9,10 +9,15 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%230ea5e9' width='32' height='32' rx='6'/><text x='16' y='22' font-size='20' font-weight='700' fill='white' text-anchor='middle' font-family='monospace'>C</text></svg>">
   <link rel="stylesheet" href="/styles-cyrus.css">
   <script>
-    window.CYRUS_CONFIG = {
-      supabaseUrl: new URL(window.location.href).searchParams.get("supabaseUrl") || localStorage.getItem("cyrus-supabase-url") || "",
-      supabaseAnonKey: new URL(window.location.href).searchParams.get("supabaseAnonKey") || localStorage.getItem("cyrus-supabase-anon-key") || ""
+    // Prefer URL params / localStorage, then fall back to the unlocked defaults from config.js
+    window.CYRUS_CONFIG = window.CYRUS_CONFIG || {};
+    const params = new URL(window.location.href).searchParams;
+    const fromUrl = {
+      supabaseUrl: params.get("supabaseUrl") || localStorage.getItem("cyrus-supabase-url") || "",
+      supabaseAnonKey: params.get("supabaseAnonKey") || localStorage.getItem("cyrus-supabase-anon-key") || ""
     };
+    if (fromUrl.supabaseUrl) window.CYRUS_CONFIG.supabaseUrl = fromUrl.supabaseUrl;
+    if (fromUrl.supabaseAnonKey) window.CYRUS_CONFIG.supabaseAnonKey = fromUrl.supabaseAnonKey;
   </script>
 </head>
 <body>
@@ -75,7 +80,6 @@
     </div>
   </aside>
 
-  <!-- Main Content Area -->
   <main id="mainContent" class="main-content">
     <header class="main-header">
       <div class="main-brand" aria-label="Cyrus workspace">
@@ -98,7 +102,6 @@
       </div>
     </header>
 
-    <!-- Welcome / Empty State -->
     <div id="welcomeContainer" class="welcome-container">
       <div class="welcome-content">
         <div class="welcome-logo">
@@ -137,17 +140,14 @@
       </div>
     </div>
 
-    <!-- Chat Messages Area -->
     <div id="chatMessagesContainer" class="chat-messages-container" hidden>
       <div id="messagesScrollContainer" class="messages-scroll">
         <div id="messagesList" class="messages-list"></div>
       </div>
     </div>
 
-    <!-- Chat Composer -->
     <div class="composer-container">
       <div class="composer-inner">
-        <!-- Error Banner -->
         <div id="errorBanner" class="error-banner" hidden role="alert">
           <span id="errorMessage"></span>
           <button id="errorClose" class="error-close" aria-label="Close error">
@@ -158,7 +158,6 @@
           </button>
         </div>
 
-        <!-- Composer Form -->
         <form id="messageForm" class="message-form" novalidate>
           <div class="input-area">
             <textarea
@@ -196,7 +195,6 @@
     </div>
   </main>
 
-  <!-- Unified Settings & Account Modal -->
   <dialog id="settingsModal" class="modal settings-modal" aria-labelledby="settingsModalTitle">
     <div class="modal-content settings-shell">
       <div class="modal-header">
@@ -211,7 +209,6 @@
           </svg>
         </button>
       </div>
-
       <div class="settings-layout">
         <nav class="settings-tabs" role="tablist" aria-label="Settings and account sections" aria-orientation="vertical">
           <button id="settingsTabAppearance" class="settings-tab" type="button" role="tab" aria-selected="true" aria-controls="settingsPanelAppearance" tabindex="0" data-settings-tab="appearance">Appearance</button>
@@ -219,7 +216,6 @@
           <button id="settingsTabConversation" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanelConversation" tabindex="-1" data-settings-tab="conversation">Conversation</button>
           <button id="settingsTabAccount" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanelAccount" tabindex="-1" data-settings-tab="account">Account</button>
         </nav>
-
         <div class="settings-panels">
           <section id="settingsPanelAppearance" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabAppearance" tabindex="0" data-settings-panel="appearance">
             <h3 class="settings-panel-title">Appearance</h3>
@@ -244,7 +240,6 @@
               </section>
             </div>
           </section>
-
           <section id="settingsPanelInteraction" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabInteraction" tabindex="0" data-settings-panel="interaction" hidden>
             <h3 class="settings-panel-title">Interaction</h3>
             <div class="settings-body">
@@ -260,7 +255,6 @@
               </section>
             </div>
           </section>
-
           <section id="settingsPanelConversation" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabConversation" tabindex="0" data-settings-panel="conversation" hidden>
             <h3 class="settings-panel-title">Conversation</h3>
             <div class="settings-body">
@@ -277,7 +271,6 @@
               </section>
             </div>
           </section>
-
           <section id="settingsPanelAccount" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabAccount" tabindex="0" data-settings-panel="account" hidden>
             <h3 class="settings-panel-title">Account</h3>
             <div class="settings-body account-body">

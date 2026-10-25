@@ -1,15 +1,11 @@
 services:
   - type: web
-    name: cyrus
+    name: mahi-ai
     runtime: node
     plan: free
     region: singapore
+    branch: main
+    autoDeployTrigger: commit
     buildCommand: npm install
     startCommand: npm start
-    autoDeployTrigger: commit
-    healthCheckPath: /api/health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: AI_PROVIDER
-        value: auto
+    healthCheckPath: /healthz

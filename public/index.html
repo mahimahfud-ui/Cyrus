@@ -1,121 +1,269 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101114">
-<meta name="description" content="Cyrus — a focused AI assistant.">
-<title>Cyrus — AI Assistant</title>
-<style>
-:root{color-scheme:dark;--bg:#101114;--panel:#17191e;--panel2:#1d2026;--line:#292c34;--text:#f0f2f7;--muted:#9ba2b1;--accent:#67e8f9;--accent2:#38bdf8;--danger:#fca5a5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden}button,textarea{font:inherit}button{cursor:pointer;color:inherit}
-.shell{height:100dvh;display:grid;grid-template-columns:272px minmax(0,1fr)}.sidebar{border-right:1px solid var(--line);background:#121317;display:flex;flex-direction:column;padding:18px 13px;min-width:0}.brand{display:flex;gap:11px;align-items:center;padding:3px 7px 22px}.mark{width:35px;height:35px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#a5f3fc,#0ea5e9);color:#082f49;font-size:19px;font-weight:900;box-shadow:0 4px 28px #0ea5e933}.brand-name{font-size:18px;font-weight:750;letter-spacing:-.5px}.brand-sub{font-size:11px;color:var(--muted);margin-top:2px}.new-chat{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--panel2);border:1px solid #30343d;border-radius:12px;padding:12px;font-weight:650;font-size:13px;transition:background .18s,border-color .18s}.new-chat:hover{background:#272c34;border-color:#4b5563}.side-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#717887;font-weight:800;padding:23px 9px 9px}.history{display:flex;flex-direction:column;gap:4px;overflow:auto;min-height:0}.history-item{padding:10px 11px;background:transparent;border:1px solid transparent;text-align:left;border-radius:9px;color:#b6bdc9;font-size:12px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.history-item:hover,.history-item.active{background:#1f2229;color:#f3f4f6;border-color:#30333a}.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding:13px 6px 0}.profile{display:flex;align-items:center;gap:10px;padding:7px 4px}.avatar{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#263641;color:#a5f3fc;font-weight:800;font-size:11px}.profile-name{font-size:12px;font-weight:650}.profile-note{font-size:10px;color:#858d9b;margin-top:3px}.side-link{border:0;background:none;color:#9ba2b1;text-align:left;padding:8px 5px;font-size:11px}
-.main{min-width:0;display:flex;flex-direction:column;height:100dvh}.topbar{height:66px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 26px;border-bottom:1px solid var(--line);background:#101114d9}.top-left{display:flex;align-items:center;gap:11px}.mobile-menu{display:none}.page-title{font-size:13px;font-weight:700}.page-sub{font-size:11px;color:var(--muted);margin-top:3px}.status{display:inline-flex;align-items:center;gap:7px;color:#a8f0cd;font-size:11px;background:#10231b;border:1px solid #1d4432;padding:7px 10px;border-radius:99px}.dot{width:6px;height:6px;background:#4ade80;border-radius:50%;box-shadow:0 0 9px #4ade8077}.chat-viewport{flex:1;overflow:auto;min-height:0;scroll-behavior:smooth}.messages{width:min(850px,100%);margin:0 auto;padding:32px 26px 22px}.welcome{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:36px 0 24px}.welcome-icon{width:62px;height:62px;border-radius:21px;background:linear-gradient(145deg,#1e3846,#16252e);border:1px solid #315263;display:grid;place-items:center;font-size:30px;color:#a5f3fc;box-shadow:0 0 50px #0891b21c}.eyebrow{margin-top:23px;text-transform:uppercase;letter-spacing:2.5px;color:#7dd3fc;font-size:10px;font-weight:800}.welcome h1{font-size:clamp(28px,4vw,42px);letter-spacing:-1.7px;line-height:1.12;margin:13px 0 10px;font-weight:720}.welcome p{font-size:13px;color:#9da5b3;line-height:1.7;max-width:430px;margin:0}.suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:min(560px,100%);margin-top:31px}.suggestion{min-height:84px;text-align:left;padding:14px 15px;background:linear-gradient(140deg,#191b20,#15171b);border:1px solid #2d3038;border-radius:13px;transition:transform .18s,border-color .18s,background .18s}.suggestion:hover{transform:translateY(-2px);border-color:#3c8297;background:#1a2329}.suggestion-icon{font-size:17px;display:block;margin-bottom:9px}.suggestion strong{display:block;font-size:12px;font-weight:650}.suggestion span:last-child{display:block;font-size:10px;color:#8f97a5;margin-top:4px}.message{display:flex;gap:12px;margin:24px 0;align-items:flex-start}.message.user{flex-direction:row-reverse}.message-avatar{width:29px;height:29px;border-radius:10px;flex:0 0 29px;display:grid;place-items:center;background:#203641;color:#a5f3fc;font-size:13px;font-weight:850;border:1px solid #31505c}.message.user .message-avatar{background:#2b2d35;color:#e5e7eb;border-color:#3c404a}.bubble{max-width:min(680px,calc(100% - 42px));padding:12px 15px;border:1px solid #292d36;border-radius:4px 15px 15px 15px;background:#17191e;font-size:13px;line-height:1.75;color:#e1e5ec;white-space:pre-wrap;overflow-wrap:anywhere}.message.user .bubble{background:#20242a;border-color:#353a44;border-radius:15px 4px 15px 15px}.message.error .bubble{border-color:#633838;color:#fecaca}.typing{color:#8ce3f2;letter-spacing:2px}.composer-area{padding:10px 22px 16px;flex-shrink:0;background:linear-gradient(0deg,#101114 72%,#101114e8)}.composer{width:min(850px,100%);margin:0 auto;border:1px solid #393d46;border-radius:17px;background:#1a1c21;padding:12px;box-shadow:0 8px 32px #0003;transition:border-color .2s,box-shadow .2s}.composer:focus-within{border-color:#3d8193;box-shadow:0 0 0 3px #164e6333}.composer textarea{width:100%;background:transparent;border:0;resize:none;outline:0;color:var(--text);font-size:13px;line-height:1.6;min-height:27px;max-height:180px;padding:4px 3px}.composer textarea::placeholder{color:#737b88}.composer-row{display:flex;align-items:center;justify-content:space-between;padding-top:7px}.composer-hint{color:#777f8d;font-size:10px;padding-left:4px}.send{width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:11px;background:var(--accent);color:#082f49;font-size:17px;font-weight:900;transition:background .2s,transform .2s}.send:hover{background:#a5f3fc;transform:translateY(-1px)}.send:disabled{opacity:.38;cursor:not-allowed;transform:none}.disclaimer{text-align:center;color:#6e7581;font-size:10px;margin-top:9px}.mobile-backdrop{display:none}
-@media(max-width:760px){.shell{grid-template-columns:minmax(0,1fr)}.sidebar{position:fixed;z-index:5;left:0;top:0;bottom:0;width:min(290px,86vw);transform:translateX(-105%);transition:transform .23s ease;box-shadow:14px 0 50px #0008}.sidebar.open{transform:translateX(0)}.mobile-backdrop.show{display:block;position:fixed;inset:0;background:#0009;z-index:4}.mobile-menu{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#1d2026;border:1px solid #30343c}.topbar{height:60px;padding:0 14px}.messages{padding:20px 15px 15px}.welcome{padding-top:28px}.welcome h1{font-size:31px}.welcome p{font-size:12px}.suggestions{gap:8px;margin-top:25px}.suggestion{padding:11px;min-height:85px}.suggestion strong{font-size:11px}.suggestion span:last-child{font-size:10px}.composer-area{padding:8px 12px 12px}.status{font-size:10px;padding:6px 8px}.message{gap:8px}.bubble{font-size:12px;padding:10px 12px}.page-sub{font-size:10px}}
-@media(max-width:380px){.suggestions{grid-template-columns:1fr}.suggestion{min-height:70px}.welcome h1{font-size:28px}.status{gap:5px}.status .status-label{display:none}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>Cyrus - AI Conversations</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%230ea5e9' width='32' height='32' rx='6'/><text x='16' y='22' font-size='20' font-weight='700' fill='white' text-anchor='middle' font-family='monospace'>C</text></svg>">
+  <link rel="stylesheet" href="/styles-cyrus.css">
+  <script>
+    window.CYRUS_CONFIG = {
+      supabaseUrl: new URL(window.location.href).searchParams.get("supabaseUrl") || localStorage.getItem("cyrus-supabase-url") || "",
+      supabaseAnonKey: new URL(window.location.href).searchParams.get("supabaseAnonKey") || localStorage.getItem("cyrus-supabase-anon-key") || ""
+    };
+  </script>
 </head>
 <body>
-<div class="mobile-backdrop" id="backdrop"></div>
-<div class="shell">
-  <aside class="sidebar" id="sidebar">
-    <div class="brand"><div class="mark">C</div><div><div class="brand-name">Cyrus</div><div class="brand-sub">A clearer way to think</div></div></div>
-    <button class="new-chat" id="newChat"><span>＋</span> New conversation</button>
-    <div class="side-label">Recent conversations</div>
-    <div class="history" id="history"></div>
-    <div class="sidebar-bottom">
-      <button class="side-link" id="clearHistory">Clear local history</button>
-      <div class="profile"><div class="avatar">CY</div><div><div class="profile-name">Cyrus Assistant</div><div class="profile-note">History saved on this device</div></div></div>
+  <!-- Mobile Sidebar Drawer -->
+  <div id="sidebarScrim" class="sidebar-scrim" hidden></div>
+  <aside id="sidebar" class="sidebar" data-state="closed">
+    <div class="sidebar-header">
+      <div class="cyrus-logo">
+        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
+          <defs>
+            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <rect fill="url(#logoGradient)" width="32" height="32" rx="8"/>
+          <text x="16" y="23" font-size="18" font-weight="700" fill="white" text-anchor="middle" font-family="monospace">C</text>
+        </svg>
+        <span class="logo-text">Cyrus</span>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" aria-label="Close sidebar" aria-expanded="true">
+        <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+    </div>
+
+    <button id="newChatButton" class="new-chat-btn">
+      <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      New Chat
+    </button>
+
+    <div class="sidebar-search">
+      <input type="text" id="conversationSearch" placeholder="Search conversations..." class="search-input">
+      <svg class="icon-16 search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+      </svg>
+    </div>
+
+    <div class="sidebar-conversations">
+      <div id="conversationsList" class="conversations-list"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button id="settingsButton" class="settings-btn" aria-label="Settings">
+        <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 5.08l4.24 4.24M1 12h6m6 0h6M4.22 19.78l4.24-4.24m5.08-5.08l4.24-4.24"/>
+        </svg>
+      </button>
+      <button id="accountButton" class="account-btn" aria-label="Account">
+        <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </button>
     </div>
   </aside>
-  <main class="main">
-    <header class="topbar">
-      <div class="top-left"><button class="mobile-menu" id="menuBtn" aria-label="Open menu">☰</button><div><div class="page-title">Cyrus AI</div><div class="page-sub">Your personal thinking partner</div></div></div>
-      <div class="status"><span class="dot"></span><span class="status-label">Interface ready</span></div>
-    </header>
-    <section class="chat-viewport" id="viewport" aria-live="polite"><div class="messages" id="messages"></div></section>
-    <footer class="composer-area">
-      <form class="composer" id="chatForm">
-        <textarea id="prompt" rows="1" placeholder="Message Cyrus..." maxlength="12000" aria-label="Message Cyrus"></textarea>
-        <div class="composer-row"><div class="composer-hint">Enter to send · Shift + Enter for a new line</div><button class="send" id="sendBtn" type="submit" aria-label="Send message">↑</button></div>
-      </form>
-      <div class="disclaimer">Cyrus can make mistakes. Verify important information.</div>
-    </footer>
+
+  <!-- Main Content Area -->
+  <main id="mainContent" class="main-content">
+    <!-- Welcome / Empty State -->
+    <div id="welcomeContainer" class="welcome-container">
+      <div class="welcome-content">
+        <div class="welcome-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" class="welcome-icon">
+            <defs>
+              <linearGradient id="welcomeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+              </linearGradient>
+            </defs>
+            <rect fill="url(#welcomeGradient)" width="64" height="64" rx="16"/>
+            <text x="32" y="48" font-size="36" font-weight="700" fill="white" text-anchor="middle" font-family="monospace">C</text>
+          </svg>
+        </div>
+        <h1 class="welcome-title">Hello. I'm Cyrus.</h1>
+        <p class="welcome-subtitle">Your conversational AI assistant. Start by asking me anything.</p>
+        
+        <div class="suggested-prompts">
+          <button class="prompt-suggestion" data-prompt="Explain quantum computing in simple terms">
+            <span class="prompt-icon">✨</span>
+            <span class="prompt-text">Explain quantum computing</span>
+          </button>
+          <button class="prompt-suggestion" data-prompt="Write a short story about AI">
+            <span class="prompt-icon">📖</span>
+            <span class="prompt-text">Write a short story</span>
+          </button>
+          <button class="prompt-suggestion" data-prompt="Help me brainstorm project ideas">
+            <span class="prompt-icon">💡</span>
+            <span class="prompt-text">Brainstorm ideas</span>
+          </button>
+          <button class="prompt-suggestion" data-prompt="Explain machine learning">
+            <span class="prompt-icon">🤖</span>
+            <span class="prompt-text">Explain ML concepts</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div id="chatMessagesContainer" class="chat-messages-container" hidden>
+      <div id="messagesScrollContainer" class="messages-scroll">
+        <div id="messagesList" class="messages-list"></div>
+      </div>
+    </div>
+
+    <!-- Chat Composer -->
+    <div class="composer-container">
+      <div class="composer-inner">
+        <!-- Error Banner -->
+        <div id="errorBanner" class="error-banner" hidden role="alert">
+          <span id="errorMessage"></span>
+          <button id="errorClose" class="error-close" aria-label="Close error">
+            <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Composer Form -->
+        <form id="messageForm" class="message-form" novalidate>
+          <div class="input-area">
+            <textarea
+              id="messageInput"
+              class="message-input"
+              placeholder="Message Cyrus..."
+              rows="1"
+              aria-label="Message input"
+              aria-describedby="charCount"
+            ></textarea>
+            <div class="input-actions">
+              <button id="attachButton" class="action-btn" type="button" aria-label="Attach file">
+                <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 0 19.8 4.3M22 12.5a10 10 0 0 0-19.8-4.2"/>
+                </svg>
+              </button>
+              <button id="sendButton" class="action-btn send-btn" type="submit" aria-label="Send message">
+                <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+              <button id="stopButton" class="action-btn stop-btn" type="button" aria-label="Stop generation" hidden>
+                <svg class="icon-16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <input type="file" id="fileInput" multiple hidden>
+          <div id="attachmentList" class="attachment-list"></div>
+          <div id="charCount" class="char-count" hidden></div>
+        </form>
+      </div>
+    </div>
   </main>
-</div>
-<script>
-(function(){
-  const $ = (id) => document.getElementById(id);
-  const KEY = 'cyrus.conversations.v1';
-  let conversations = [];
-  let activeId = null;
-  let busy = false;
-  try { conversations = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(conversations)) conversations = []; } catch (_) { conversations = []; }
-  function persist(){ try { localStorage.setItem(KEY, JSON.stringify(conversations.slice(0,50))); } catch (_) {} }
-  function makeId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-  function current(){ return conversations.find(c => c.id === activeId); }
-  function createChat(){ const c={id:makeId(),title:'New conversation',messages:[],updated:Date.now()}; conversations.unshift(c); activeId=c.id; persist(); renderAll(); closeMenu(); $('prompt').focus(); }
-  function esc(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-  function renderHistory(){
-    const host=$('history'); host.textContent='';
-    conversations.slice().sort((a,b)=>b.updated-a.updated).forEach(c=>{
-      const b=document.createElement('button'); b.type='button'; b.className='history-item'+(c.id===activeId?' active':''); b.textContent=c.title||'New conversation'; b.title=b.textContent;
-      b.addEventListener('click',()=>{activeId=c.id;renderAll();closeMenu();}); host.appendChild(b);
-    });
-  }
-  function addMessage(role,content,extra){
-    const row=document.createElement('div'); row.className='message '+role+(extra?' '+extra:'');
-    const av=document.createElement('div'); av.className='message-avatar'; av.textContent=role==='user'?'Y':'C';
-    const bubble=document.createElement('div'); bubble.className='bubble'; bubble.textContent=content;
-    row.append(av,bubble); $('messages').appendChild(row); return row;
-  }
-  function renderMessages(){
-    const host=$('messages'); host.textContent='';
-    const c=current();
-    if(!c || !c.messages.length){
-      const welcome=document.createElement('div'); welcome.className='welcome';
-      welcome.innerHTML='<div class="welcome-icon">✦</div><div class="eyebrow">Meet Cyrus</div><h1>What can I help you<br>figure out today?</h1><p>Explore an idea, solve a problem, or turn a rough thought into a clear plan. Start wherever you are.</p><div class="suggestions"><button class="suggestion" data-prompt="Explain a difficult topic in simple terms."><span class="suggestion-icon">✧</span><strong>Learn something</strong><span>Make a complex topic simple</span></button><button class="suggestion" data-prompt="Help me make a practical plan for my next goal."><span class="suggestion-icon">⌁</span><strong>Plan a goal</strong><span>Turn an idea into next steps</span></button><button class="suggestion" data-prompt="Help me write a clear, polished message."><span class="suggestion-icon">↗</span><strong>Write something</strong><span>Find the right words</span></button><button class="suggestion" data-prompt="Give me a few creative ideas for a project."><span class="suggestion-icon">✳</span><strong>Explore ideas</strong><span>Brainstorm different approaches</span></button></div>';
-      host.appendChild(welcome);
-      host.querySelectorAll('[data-prompt]').forEach(btn=>btn.addEventListener('click',()=>{ $('prompt').value=btn.getAttribute('data-prompt'); autosize(); $('prompt').focus(); }));
-      return;
-    }
-    c.messages.forEach(m=>addMessage(m.role==='user'?'user':'assistant',m.content));
-    $('viewport').scrollTop=$('viewport').scrollHeight;
-  }
-  function renderAll(){ renderHistory(); renderMessages(); }
-  function autosize(){const el=$('prompt');el.style.height='auto';el.style.height=Math.min(el.scrollHeight,180)+'px';}
-  function closeMenu(){ $('sidebar').classList.remove('open'); $('backdrop').classList.remove('show'); }
-  async function sendMessage(text){
-    if(busy || !text.trim()) return;
-    if(!current()) { const c={id:makeId(),title:'New conversation',messages:[],updated:Date.now()}; conversations.unshift(c); activeId=c.id; }
-    const c=current(); const userText=text.trim();
-    if(!c.messages.length) c.title=userText.slice(0,38)+(userText.length>38?'…':'');
-    c.messages.push({role:'user',content:userText}); c.updated=Date.now(); persist(); renderAll();
-    $('prompt').value='';autosize();busy=true;$('sendBtn').disabled=true;
-    const thinking=addMessage('assistant','Thinking…');thinking.querySelector('.bubble').classList.add('typing');
-    $('viewport').scrollTop=$('viewport').scrollHeight;
-    try {
-      const payload=c.messages.slice(-24).map(m=>({role:m.role,content:m.content}));
-      const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:payload})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok) throw new Error(data.error||'The request could not be completed.');
-      if(typeof data.reply!=='string'||!data.reply.trim()) throw new Error('The AI returned an empty response.');
-      c.messages.push({role:'assistant',content:data.reply}); c.updated=Date.now(); persist();
-    } catch(e) {
-      c.messages.push({role:'assistant',content:e.message||'Something went wrong. Please try again.',error:true});
-    } finally {busy=false;$('sendBtn').disabled=false;renderAll();$('prompt').focus();}
-  }
-  $('newChat').addEventListener('click',createChat);
-  $('clearHistory').addEventListener('click',()=>{if(confirm('Delete all conversations saved in this browser?')){conversations=[];activeId=null;persist();renderAll();}});
-  $('chatForm').addEventListener('submit',e=>{e.preventDefault();sendMessage($('prompt').value);});
-  $('prompt').addEventListener('input',autosize);
-  $('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatForm').requestSubmit();}});
-  $('menuBtn').addEventListener('click',()=>{$('sidebar').classList.add('open');$('backdrop').classList.add('show');});
-  $('backdrop').addEventListener('click',closeMenu);
-  if(conversations.length) activeId=conversations[0].id; else {const c={id:makeId(),title:'New conversation',messages:[],updated:Date.now()};conversations.push(c);activeId=c.id;persist();}
-  renderAll();
-})();
-</script>
+
+  <!-- Settings Modal -->
+  <dialog id="settingsModal" class="modal settings-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Settings</h2>
+        <button class="modal-close" aria-label="Close settings">
+          <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body settings-body">
+        <!-- Appearance -->
+        <section class="settings-section">
+          <h3 class="settings-heading">Appearance</h3>
+          <label class="settings-option">
+            <span class="option-label">Theme</span>
+            <select id="themeSelect" class="option-control">
+              <option value="auto">Auto (System)</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <label class="settings-option">
+            <span class="option-label">Font Size</span>
+            <select id="fontSizeSelect" class="option-control">
+              <option value="small">Small</option>
+              <option value="normal" selected>Normal</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+        </section>
+
+        <!-- Interaction -->
+        <section class="settings-section">
+          <h3 class="settings-heading">Interaction</h3>
+          <label class="settings-option checkbox">
+            <input type="checkbox" id="enterToSendToggle" checked>
+            <span class="option-label">Send with Enter key</span>
+          </label>
+          <label class="settings-option checkbox">
+            <input type="checkbox" id="autoScrollToggle" checked>
+            <span class="option-label">Auto-scroll to new messages</span>
+          </label>
+        </section>
+
+        <!-- Conversation -->
+        <section class="settings-section">
+          <h3 class="settings-heading">Conversation</h3>
+          <label class="settings-option">
+            <span class="option-label">Instructions for Cyrus</span>
+            <textarea id="systemInstructions" class="option-textarea" placeholder="Add custom instructions for all conversations..." rows="3"></textarea>
+          </label>
+        </section>
+
+        <!-- Data & Privacy -->
+        <section class="settings-section">
+          <h3 class="settings-heading">Data & Privacy</h3>
+          <button id="clearHistoryButton" class="danger-btn">Clear Conversation History</button>
+          <p class="settings-hint">This action cannot be undone.</p>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Account Modal -->
+  <dialog id="accountModal" class="modal account-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Account</h2>
+        <button class="modal-close" aria-label="Close account">
+          <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body account-body">
+        <div id="accountContent" class="account-content"></div>
+        <button id="signOutButton" class="secondary-btn" style="width: 100%; margin-top: 2rem;">Sign Out</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/config.js"></script>
+  <script src="/provider-adapter.js"></script>
+  <script src="/cyrus-app.js"></script>
 </body>
 </html>

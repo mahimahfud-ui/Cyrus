@@ -1,120 +1,121 @@
-require('dotenv').config();
-const express = require('express');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const path = require('path');
+// MahiCloud static server for Node 18+ hosting (including Render).
+// AI requests go directly to the authenticated Supabase Edge Function.
+// Never put AI-provider credentials in this server or in public/ files.
+//
+// Speed upgrades vs. the previous version:
+//   - Brotli/gzip compression, computed once per file and kept in memory (~70-80% smaller JS/CSS/HTML)
+//   - ETag + 304 responses: unchanged files cost almost nothing on repeat visits
+//   - keep-alive tuned for Render's proxy (the old 5s value caused dropped connections / retries)
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const zlib = require("zlib");
+const crypto = require("crypto");
 
-const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const PUBLIC_DIR = path.join(__dirname, 'public');
-app.disable('x-powered-by');
-app.set('trust proxy', 1);
-app.use(helmet({
-  contentSecurityPolicy: { directives: {
-    defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'https:'],
-    connectSrc: ["'self'"],
-    fontSrc: ["'self'", 'data:'],
-    objectSrc: ["'none'"],
-    baseUri: ["'self'"],
-    frameAncestors: ["'none'"]
-  }}
-}));
-app.use(express.json({ limit: '1mb' }));
+const PUBLIC_DIR = path.resolve(__dirname, "public");
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+  ".json": "application/json; charset=utf-8"
+};
+const COMPRESSIBLE = /\.(?:html?|js|css|json|svg)$/i;
+const REVALIDATE = /\.(?:html?|js|css|json)$/i;
+const SECURITY = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "DENY",
+  "Permissions-Policy": "camera=(), microphone=(self), geolocation=()"
+};
 
-const chatLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 30,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'Too many chat requests. Please wait a little and try again.' }
-});
-
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', app: 'cyrus', timestamp: new Date().toISOString() });
-});
-
-function configuredProviders() {
-  const providers = {
-    openai: process.env.OPENAI_API_KEY ? {
-      name: 'OpenAI', baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      key: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    } : null,
-    xai: process.env.XAI_API_KEY ? {
-      name: 'xAI', baseUrl: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
-      key: process.env.XAI_API_KEY, model: process.env.XAI_MODEL || 'grok-3-mini'
-    } : null
-  };
-  const preference = (process.env.AI_PROVIDER || 'auto').toLowerCase();
-  const order = preference === 'xai' ? ['xai', 'openai'] : preference === 'openai' ? ['openai', 'xai'] : ['openai', 'xai'];
-  return order.filter((id) => providers[id]).map((id) => providers[id]);
+function send(res, status, body, type) {
+  res.writeHead(status, { ...SECURITY, "Content-Type": type || "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+  res.end(body);
 }
 
-async function callProvider(provider, messages) {
-  const url = provider.baseUrl.replace(/\/$/, '') + '/chat/completions';
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + provider.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: provider.model, messages, temperature: 0.7, max_tokens: 1800 }),
-    signal: AbortSignal.timeout(60000)
+// filePath -> { mtimeMs, size, etag, raw, br, gzip }
+const cache = new Map();
+const MAX_CACHED_BYTES = 2 * 1024 * 1024;
+
+function loadEntry(filePath, stat, done) {
+  const hit = cache.get(filePath);
+  if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) return done(null, hit);
+  fs.readFile(filePath, (error, raw) => {
+    if (error) return done(error);
+    const entry = { mtimeMs: stat.mtimeMs, size: stat.size, raw, etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 20) + '"' };
+    if (COMPRESSIBLE.test(filePath) && raw.length > 512) {
+      try {
+        entry.br = zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } });
+        entry.gzip = zlib.gzipSync(raw, { level: 6 });
+      } catch (_) { /* fall back to uncompressed */ }
+    }
+    if (raw.length <= MAX_CACHED_BYTES) cache.set(filePath, entry);
+    done(null, entry);
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error('AI provider request failed');
-    error.status = response.status;
-    throw error;
-  }
-  const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (typeof content !== 'string' || !content.trim()) throw new Error('AI provider returned an empty response');
-  return content.trim();
 }
 
-app.post('/api/chat', chatLimiter, async (req, res) => {
-  const incoming = req.body && req.body.messages;
-  if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > 30) {
-    return res.status(400).json({ error: 'Send a valid conversation containing 1 to 30 messages.' });
+const server = http.createServer((req, res) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  } catch (_) {
+    return send(res, 400, "Bad request");
   }
-  const messages = [];
-  for (const item of incoming) {
-    if (!item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || item.content.length > 12000) {
-      return res.status(400).json({ error: 'A message is invalid or too long.' });
+  // Reject path bytes that can make filesystem APIs throw synchronously or that
+  // proxies and Node may interpret differently.
+  if (pathname.includes("\0") || pathname.includes("\\")) return send(res, 400, "Bad request");
+  if (pathname === "/healthz") {
+    if (req.method === "HEAD") {
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+      return res.end();
     }
-    messages.push({ role: item.role, content: item.content });
+    return send(res, 200, "ok");
   }
-  if (messages[messages.length - 1].role !== 'user') {
-    return res.status(400).json({ error: 'The latest message must be from the user.' });
-  }
-  messages.unshift({ role: 'system', content: 'You are Cyrus, a helpful, accurate AI assistant. Answer clearly and directly. Use the user’s language where practical. Do not claim to have performed actions you did not perform.' });
-  const providers = configuredProviders();
-  if (!providers.length) {
-    return res.status(503).json({ error: 'AI is not configured yet. Add OPENAI_API_KEY or XAI_API_KEY in Render → Cyrus → Environment, then redeploy.' });
-  }
-  for (const provider of providers) {
-    try {
-      const answer = await callProvider(provider, messages);
-      return res.json({ reply: answer });
-    } catch (error) {
-      console.error('Provider attempt failed:', provider.name, error.status || error.name || 'unknown error');
-    }
-  }
-  return res.status(502).json({ error: 'All configured AI providers failed. Check the API key, model name, provider quota, and Render logs.' });
+  if (pathname === "/") pathname = "/index.html";
+  const filePath = path.resolve(PUBLIC_DIR, "." + pathname);
+  if (!filePath.startsWith(PUBLIC_DIR + path.sep) && filePath !== path.join(PUBLIC_DIR, "index.html")) return send(res, 403, "Forbidden");
+
+  fs.stat(filePath, (statError, stat) => {
+    if (statError || !stat.isFile()) return send(res, 404, "Not found");
+    loadEntry(filePath, stat, (error, entry) => {
+      if (error) return send(res, 404, "Not found");
+      const ext = path.extname(filePath).toLowerCase();
+      const headers = {
+        ...SECURITY,
+        "Content-Type": MIME[ext] || "application/octet-stream",
+        "ETag": entry.etag,
+        "Vary": "Accept-Encoding",
+        // Code is revalidated (cheap 304 thanks to the ETag); images/fonts are cached for a day.
+        "Cache-Control": REVALIDATE.test(pathname) ? "no-cache" : "public, max-age=86400"
+      };
+      if (req.headers["if-none-match"] === entry.etag) {
+        res.writeHead(304, headers);
+        return res.end();
+      }
+      const accept = String(req.headers["accept-encoding"] || "");
+      let body = entry.raw;
+      if (entry.br && /\bbr\b/.test(accept)) { body = entry.br; headers["Content-Encoding"] = "br"; }
+      else if (entry.gzip && /\bgzip\b/.test(accept)) { body = entry.gzip; headers["Content-Encoding"] = "gzip"; }
+      headers["Content-Length"] = body.length;
+      res.writeHead(200, headers);
+      res.end(req.method === "HEAD" ? undefined : body);
+    });
+  });
 });
 
-app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }));
-app.get('*', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-app.use((err, _req, res, _next) => {
-  console.error('Request error:', err && err.message ? err.message : 'unknown');
-  if (res.headersSent) return;
-  res.status(err && err.status === 413 ? 413 : 500).json({ error: err && err.status === 413 ? 'Request is too large.' : 'Unexpected server error.' });
-});
+server.requestTimeout = 15000;
+// Must be longer than the proxy's idle timeout, otherwise Render's proxy reuses sockets Node already closed.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+server.maxHeadersCount = 100;
 
-const server = app.listen(PORT, '0.0.0.0', () => console.log('Cyrus listening on port ' + PORT));
-function shutdown(signal) {
-  console.log(signal + ' received; closing Cyrus server');
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 25000).unref();
-}
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+server.listen(PORT, "0.0.0.0", () => console.log("MahiCloud web server listening on port " + PORT));

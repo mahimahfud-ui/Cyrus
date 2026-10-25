@@ -142,3 +142,8 @@ Ordinary questions do not trigger web search. If no configured retrieval-capable
 - Prompts containing public `https://` URLs enable Gemini URL Context so it can read supported public pages and PDFs. URLs requiring login, paywalled content, private-network URLs, and some media/document types may not be retrievable.
 - Explicit arithmetic, numerical, statistics, or execution requests may enable Gemini's sandboxed Python code-execution tool. Requests to write a script remain code-generation tasks unless the user asks to run/test it.
 - These built-in tools depend on the selected Gemini model, API access, quota, and service terms. When retrieval is not available, the assistant must not claim a live search or execution occurred.
+
+
+## Cyrus chat runtime
+
+The Render deployment serves the ZIP-provided Cyrus interface and uses the same-origin `POST /api/chat` proxy to call the existing authenticated Supabase `mahi-ai-chat` Edge Function. Supabase Auth supplies a user session; provider credentials remain server-side in Supabase Edge Function Secrets and are never exposed to the browser. Conversations and messages continue to use the existing Supabase tables. Render auto-deploys commits pushed to `main`.

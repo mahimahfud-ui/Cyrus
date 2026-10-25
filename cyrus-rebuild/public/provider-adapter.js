@@ -1,278 +1,87 @@
-/** ============================================================================
- * AI PROVIDER ADAPTER FOR CYRUS
- * 
- * This module defines the interface for AI provider integration.
- * Currently, both Grok (xAI) and ChatGPT (OpenAI) are left unconfigured.
- * 
- * INTEGRATION INSTRUCTIONS:
- * 
- * 1. GROK (xAI) INTEGRATION:
- *    - Implement the `callGrok()` function below
- *    - Requires xAI API key stored securely (not in frontend)
- *    - API documentation: https://docs.x.ai/api
- *    - Stream responses using the standard chat completion interface
- *
- * 2. CHATGPT (OpenAI) INTEGRATION:
- *    - Implement the `callChatGPT()` function below
- *    - Requires OpenAI API key stored securely (not in frontend)
- *    - API documentation: https://platform.openai.com/docs/api-reference
- *    - Use gpt-4 or gpt-4-turbo for best results
- *
- * 3. SECURITY NOTES:
- *    - NEVER expose API keys in frontend code
- *    - Use a backend proxy server to handle API requests
- *    - Implement proper authentication and rate limiting
- *    - Validate all user inputs before sending to providers
- *
- * ============================================================================ */
-
+/* Authenticated same-origin adapter to Cyrus's Supabase-backed AI endpoint.
+   Provider secrets and model fallback remain in Supabase Edge Function Secrets. */
 (() => {
   "use strict";
+  const cfg = window.CYRUS_CONFIG || {};
+  function getAvailable() { return cfg.supabaseUrl && cfg.supabaseAnonKey ? "mahi-ai-chat" : null; }
 
-  // =========================================================================
-  // CONFIGURATION
-  // =========================================================================
-  const PROVIDER_CONFIG = {
-    grok: {
-      enabled: false,
-      apiKey: null,
-      model: "grok-beta",
-      baseUrl: "https://api.x.ai/v1"
-    },
-    chatgpt: {
-      enabled: false,
-      apiKey: null,
-      model: "gpt-4-turbo",
-      baseUrl: "https://api.openai.com/v1"
+  async function call(userMessage, history, systemInstructions, accessToken, signal) {
+    if (!getAvailable()) throw new Error("Supabase is not configured for Cyrus.");
+    if (!accessToken) throw new Error("Your session has expired. Reload Cyrus and try again.");
+    const messages = (Array.isArray(history) ? history : [])
+      .filter((m) => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string")
+      .slice(-36)
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 30000) }));
+    if (!messages.length || messages[messages.length - 1].role !== "user") {
+      messages.push({ role: "user", content: String(userMessage || "").slice(0, 30000) });
     }
-  };
+    if (!messages[messages.length - 1].content.trim()) throw new Error("Type a message before sending.");
 
-  // =========================================================================
-  // PROVIDER SELECTION & ROUTING
-  // =========================================================================
-
-  /**
-   * Determine which provider is available and select one
-   * Priority: User preference > Grok > ChatGPT > None
-   */
-  function getAvailableProvider() {
-    const userPreference = localStorage.getItem("cyrus-preferred-provider");
-    
-    if (userPreference === "grok" && PROVIDER_CONFIG.grok.enabled) {
-      return "grok";
-    }
-    if (userPreference === "chatgpt" && PROVIDER_CONFIG.chatgpt.enabled) {
-      return "chatgpt";
-    }
-
-    // Fall back to first available
-    if (PROVIDER_CONFIG.grok.enabled) return "grok";
-    if (PROVIDER_CONFIG.chatgpt.enabled) return "chatgpt";
-    
-    return null;
-  }
-
-  /**
-   * Main entry point for AI provider calls
-   * @param {string} userMessage - The user's message
-   * @param {Array} conversationHistory - Previous messages in the conversation
-   * @param {string} systemInstructions - Custom instructions for the AI
-   * @returns {Promise<string|null>} The AI response or null if no provider
-   */
-  async function callAIProvider(userMessage, conversationHistory = [], systemInstructions = "") {
-    const provider = getAvailableProvider();
-
-    if (!provider) {
-      console.warn("No AI provider is configured");
-      return null;
-    }
-
-    try {
-      if (provider === "grok") {
-        return await callGrok(userMessage, conversationHistory, systemInstructions);
-      } else if (provider === "chatgpt") {
-        return await callChatGPT(userMessage, conversationHistory, systemInstructions);
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+      body: JSON.stringify({
+        messages,
+        custom_instructions: typeof systemInstructions === "string" ? systemInstructions.slice(0, 3000) : "",
+        response_style: "default"
+      }),
+      signal
+    });
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const data = await response.json();
+        detail = typeof data.error === "string" ? data.error : "";
+      } catch (_) {
+        try { detail = (await response.text()).slice(0, 500); } catch (_) {}
       }
-    } catch (error) {
-      console.error(`Provider error (${provider}):`, error);
-      throw error;
+      throw new Error(detail || "The AI request failed (" + response.status + ").");
     }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.body || !contentType.includes("text/event-stream")) {
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch (_) { data = null; }
+      if (data && typeof data.reply === "string") return data.reply;
+      if (data && typeof data.error === "string") throw new Error(data.error);
+      throw new Error("The AI service returned an unexpected response.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", answer = "", finished = false;
+    function consumeBlock(block) {
+      const dataLines = block.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim());
+      if (!dataLines.length) return;
+      const raw = dataLines.join("\n");
+      if (!raw || raw === "[DONE]") { finished = true; return; }
+      let event;
+      try { event = JSON.parse(raw); } catch (_) { return; }
+      if (event.type === "delta" && typeof event.text === "string") answer += event.text;
+      else if (event.type === "reset") answer = "";
+      else if (event.type === "error") throw new Error(typeof event.message === "string" ? event.message : "The AI service failed.");
+      else if (event.type === "done") finished = true;
+    }
+    try {
+      while (!finished) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        let boundary;
+        while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          consumeBlock(block);
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) consumeBlock(buffer);
+    } finally {
+      try { reader.releaseLock(); } catch (_) {}
+    }
+    if (!answer.trim()) throw new Error("The AI service returned an empty response.");
+    return answer.trim();
   }
-
-  // =========================================================================
-  // GROK (xAI) INTEGRATION POINT
-  // =========================================================================
-
-  /**
-   * Call Grok API via backend proxy
-   * 
-   * IMPLEMENTATION CHECKLIST:
-   * [ ] Create backend endpoint that authenticates with xAI API
-   * [ ] Validate API key in backend only (never in frontend)
-   * [ ] Handle streaming responses
-   * [ ] Implement retry logic with exponential backoff
-   * [ ] Add request timeout (suggest 30-60 seconds)
-   * [ ] Log provider usage for monitoring
-   * 
-   * BACKEND ENDPOINT EXAMPLE:
-   *   POST /api/ai/grok
-   *   Body: {
-   *     "message": "...",
-   *     "history": [...],
-   *     "systemInstructions": "..."
-   *   }
-   *   Response: {
-   *     "response": "...",
-   *     "usage": { "tokens": ... }
-   *   }
-   * 
-   * @param {string} userMessage
-   * @param {Array} conversationHistory
-   * @param {string} systemInstructions
-   * @returns {Promise<string>} The Grok response
-   */
-  async function callGrok(userMessage, conversationHistory, systemInstructions) {
-    // PLACEHOLDER: This function will be implemented when Grok integration is set up
-    // For now, it throws an error indicating the provider is not configured
-
-    throw new Error(
-      "Grok provider is not yet configured. " +
-      "To use Grok, implement the callGrok() function in provider-adapter.js. " +
-      "See the documentation in that file for integration steps."
-    );
-
-    // FUTURE IMPLEMENTATION PATTERN:
-    // try {
-    //   const response = await fetch("/api/ai/grok", {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       "Authorization": `Bearer ${AUTH_TOKEN}`
-    //     },
-    //     body: JSON.stringify({
-    //       message: userMessage,
-    //       history: conversationHistory,
-    //       systemInstructions: systemInstructions
-    //     })
-    //   });
-    //
-    //   if (!response.ok) {
-    //     throw new Error(`Grok API error: ${response.status}`);
-    //   }
-    //
-    //   // Handle streaming
-    //   const reader = response.body.getReader();
-    //   const decoder = new TextDecoder();
-    //   let fullResponse = "";
-    //
-    //   while (true) {
-    //     const { done, value } = await reader.read();
-    //     if (done) break;
-    //     fullResponse += decoder.decode(value, { stream: true });
-    //   }
-    //
-    //   return fullResponse;
-    // } catch (error) {
-    //   console.error("Grok call failed:", error);
-    //   throw error;
-    // }
-  }
-
-  // =========================================================================
-  // CHATGPT (OpenAI) INTEGRATION POINT
-  // =========================================================================
-
-  /**
-   * Call ChatGPT API via backend proxy
-   * 
-   * IMPLEMENTATION CHECKLIST:
-   * [ ] Create backend endpoint that authenticates with OpenAI API
-   * [ ] Validate API key in backend only (never in frontend)
-   * [ ] Use GPT-4 or GPT-4 Turbo model
-   * [ ] Handle streaming responses for real-time output
-   * [ ] Implement token counting and cost tracking
-   * [ ] Add request timeout (suggest 30-60 seconds)
-   * [ ] Implement rate limiting on backend
-   * [ ] Log provider usage for monitoring and billing
-   * 
-   * BACKEND ENDPOINT EXAMPLE:
-   *   POST /api/ai/chatgpt
-   *   Body: {
-   *     "message": "...",
-   *     "history": [...],
-   *     "systemInstructions": "..."
-   *   }
-   *   Response: {
-   *     "response": "...",
-   *     "usage": {
-   *       "promptTokens": ...,
-   *       "completionTokens": ...,
-   *       "totalTokens": ...
-   *     }
-   *   }
-   * 
-   * @param {string} userMessage
-   * @param {Array} conversationHistory
-   * @param {string} systemInstructions
-   * @returns {Promise<string>} The ChatGPT response
-   */
-  async function callChatGPT(userMessage, conversationHistory, systemInstructions) {
-    // PLACEHOLDER: This function will be implemented when ChatGPT integration is set up
-    // For now, it throws an error indicating the provider is not configured
-
-    throw new Error(
-      "ChatGPT provider is not yet configured. " +
-      "To use ChatGPT, implement the callChatGPT() function in provider-adapter.js. " +
-      "See the documentation in that file for integration steps."
-    );
-
-    // FUTURE IMPLEMENTATION PATTERN:
-    // try {
-    //   const messages = [
-    //     ...(systemInstructions ? [{ role: "system", content: systemInstructions }] : []),
-    //     ...conversationHistory.map(msg => ({
-    //       role: msg.role,
-    //       content: msg.content
-    //     })),
-    //     { role: "user", content: userMessage }
-    //   ];
-    //
-    //   const response = await fetch("/api/ai/chatgpt", {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       "Authorization": `Bearer ${AUTH_TOKEN}`
-    //     },
-    //     body: JSON.stringify({
-    //       model: "gpt-4-turbo",
-    //       messages: messages,
-    //       temperature: 0.7,
-    //       max_tokens: 2000,
-    //       top_p: 1
-    //     })
-    //   });
-    //
-    //   if (!response.ok) {
-    //     throw new Error(`OpenAI API error: ${response.status}`);
-    //   }
-    //
-    //   const data = await response.json();
-    //   return data.choices[0].message.content;
-    // } catch (error) {
-    //   console.error("ChatGPT call failed:", error);
-    //   throw error;
-    // }
-  }
-
-  // =========================================================================
-  // EXPORT FOR USE IN MAIN APP
-  // =========================================================================
-
-  // Make provider available to main application
-  window.CyrusProvider = {
-    call: callAIProvider,
-    getAvailable: getAvailableProvider,
-    config: PROVIDER_CONFIG
-  };
-
+  window.CyrusProvider = { getAvailable, call };
 })();

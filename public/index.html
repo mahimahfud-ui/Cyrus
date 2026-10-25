@@ -77,6 +77,27 @@
 
   <!-- Main Content Area -->
   <main id="mainContent" class="main-content">
+    <header class="main-header">
+      <div class="main-brand" aria-label="Cyrus workspace">
+        <span class="main-brand-mark" aria-hidden="true">C</span>
+        <span class="main-brand-name">Cyrus</span>
+      </div>
+      <div class="main-header-actions">
+        <button id="themeToggleButton" class="header-icon-btn" type="button" aria-label="Switch theme" aria-pressed="false" title="Toggle color theme">
+          <svg class="icon-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+          </svg>
+        </button>
+        <button id="headerAccountButton" class="header-icon-btn header-avatar-btn" type="button" aria-label="Open account settings" title="Account">
+          <svg class="icon-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </button>
+      </div>
+    </header>
+
     <!-- Welcome / Empty State -->
     <div id="welcomeContainer" class="welcome-container">
       <div class="welcome-content">
@@ -175,89 +196,96 @@
     </div>
   </main>
 
-  <!-- Settings Modal -->
-  <dialog id="settingsModal" class="modal settings-modal">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
+  <!-- Unified Settings & Account Modal -->
+  <dialog id="settingsModal" class="modal settings-modal" aria-labelledby="settingsModalTitle">
+    <div class="modal-content settings-shell">
       <div class="modal-header">
-        <h2 class="modal-title">Settings</h2>
-        <button class="modal-close" aria-label="Close settings">
-          <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="settings-modal-heading">
+          <h2 id="settingsModalTitle" class="modal-title">Settings</h2>
+          <p class="modal-description">Manage your preferences and account.</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close settings" data-close-settings>
+          <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
-      <div class="modal-body settings-body">
-        <!-- Appearance -->
-        <section class="settings-section">
-          <h3 class="settings-heading">Appearance</h3>
-          <label class="settings-option">
-            <span class="option-label">Theme</span>
-            <select id="themeSelect" class="option-control">
-              <option value="auto">Auto (System)</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
-          <label class="settings-option">
-            <span class="option-label">Font Size</span>
-            <select id="fontSizeSelect" class="option-control">
-              <option value="small">Small</option>
-              <option value="normal" selected>Normal</option>
-              <option value="large">Large</option>
-            </select>
-          </label>
-        </section>
 
-        <!-- Interaction -->
-        <section class="settings-section">
-          <h3 class="settings-heading">Interaction</h3>
-          <label class="settings-option checkbox">
-            <input type="checkbox" id="enterToSendToggle" checked>
-            <span class="option-label">Send with Enter key</span>
-          </label>
-          <label class="settings-option checkbox">
-            <input type="checkbox" id="autoScrollToggle" checked>
-            <span class="option-label">Auto-scroll to new messages</span>
-          </label>
-        </section>
+      <div class="settings-layout">
+        <nav class="settings-tabs" role="tablist" aria-label="Settings and account sections" aria-orientation="vertical">
+          <button id="settingsTabAppearance" class="settings-tab" type="button" role="tab" aria-selected="true" aria-controls="settingsPanelAppearance" tabindex="0" data-settings-tab="appearance">Appearance</button>
+          <button id="settingsTabInteraction" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanelInteraction" tabindex="-1" data-settings-tab="interaction">Interaction</button>
+          <button id="settingsTabConversation" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanelConversation" tabindex="-1" data-settings-tab="conversation">Conversation</button>
+          <button id="settingsTabAccount" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanelAccount" tabindex="-1" data-settings-tab="account">Account</button>
+        </nav>
 
-        <!-- Conversation -->
-        <section class="settings-section">
-          <h3 class="settings-heading">Conversation</h3>
-          <label class="settings-option">
-            <span class="option-label">Instructions for Cyrus</span>
-            <textarea id="systemInstructions" class="option-textarea" placeholder="Add custom instructions for all conversations..." rows="3"></textarea>
-          </label>
-        </section>
+        <div class="settings-panels">
+          <section id="settingsPanelAppearance" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabAppearance" tabindex="0" data-settings-panel="appearance">
+            <h3 class="settings-panel-title">Appearance</h3>
+            <div class="settings-body">
+              <section class="settings-section">
+                <label class="settings-option">
+                  <span class="option-label">Theme</span>
+                  <select id="themeSelect" class="option-control">
+                    <option value="auto">Auto (System)</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+                <label class="settings-option">
+                  <span class="option-label">Font Size</span>
+                  <select id="fontSizeSelect" class="option-control">
+                    <option value="small">Small</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="large">Large</option>
+                  </select>
+                </label>
+              </section>
+            </div>
+          </section>
 
-        <!-- Data & Privacy -->
-        <section class="settings-section">
-          <h3 class="settings-heading">Data & Privacy</h3>
-          <button id="clearHistoryButton" class="danger-btn">Clear Conversation History</button>
-          <p class="settings-hint">This action cannot be undone.</p>
-        </section>
-      </div>
-    </div>
-  </dialog>
+          <section id="settingsPanelInteraction" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabInteraction" tabindex="0" data-settings-panel="interaction" hidden>
+            <h3 class="settings-panel-title">Interaction</h3>
+            <div class="settings-body">
+              <section class="settings-section">
+                <label class="settings-option checkbox">
+                  <input type="checkbox" id="enterToSendToggle" checked>
+                  <span class="option-label">Send with Enter key</span>
+                </label>
+                <label class="settings-option checkbox">
+                  <input type="checkbox" id="autoScrollToggle" checked>
+                  <span class="option-label">Auto-scroll to new messages</span>
+                </label>
+              </section>
+            </div>
+          </section>
 
-  <!-- Account Modal -->
-  <dialog id="accountModal" class="modal account-modal">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 class="modal-title">Account</h2>
-        <button class="modal-close" aria-label="Close account">
-          <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="modal-body account-body">
-        <div id="accountContent" class="account-content"></div>
-        <button id="signOutButton" class="secondary-btn" style="width: 100%; margin-top: 2rem;">Sign Out</button>
+          <section id="settingsPanelConversation" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabConversation" tabindex="0" data-settings-panel="conversation" hidden>
+            <h3 class="settings-panel-title">Conversation</h3>
+            <div class="settings-body">
+              <section class="settings-section">
+                <label class="settings-option">
+                  <span class="option-label">Instructions for Cyrus</span>
+                  <textarea id="systemInstructions" class="option-textarea" placeholder="Add custom instructions for all conversations..." rows="3"></textarea>
+                </label>
+              </section>
+              <section class="settings-section">
+                <h4 class="settings-heading">Data &amp; Privacy</h4>
+                <button id="clearHistoryButton" class="danger-btn" type="button">Clear Conversation History</button>
+                <p class="settings-hint">This action cannot be undone.</p>
+              </section>
+            </div>
+          </section>
+
+          <section id="settingsPanelAccount" class="settings-panel" role="tabpanel" aria-labelledby="settingsTabAccount" tabindex="0" data-settings-panel="account" hidden>
+            <h3 class="settings-panel-title">Account</h3>
+            <div class="settings-body account-body">
+              <div id="accountContent" class="account-content"></div>
+              <button id="signOutButton" class="danger-btn account-signout-btn" type="button">Sign Out</button>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </dialog>

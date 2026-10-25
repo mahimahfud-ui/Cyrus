@@ -1382,3 +1382,371 @@ select:focus-visible {
     padding-right: max(var(--space-3), env(safe-area-inset-right));
   }
 }
+
+
+/* Unified settings drawer: one native dialog, one scroll container per panel. */
+.modal:not([open]) {
+  display: none !important;
+}
+
+.modal.settings-modal {
+  position: fixed;
+  inset: 0;
+  width: min(48rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  height: min(42rem, 85dvh);
+  max-height: 85dvh;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.modal.settings-modal[open] {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  animation: modalSlideUp var(--transition-normal);
+}
+
+.modal.settings-modal::backdrop {
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.settings-modal .settings-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: 85dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-16);
+}
+
+.settings-modal .modal-header {
+  gap: var(--space-4);
+  padding: 18px 24px;
+}
+
+.settings-modal .settings-modal-heading {
+  min-width: 0;
+}
+
+.settings-modal .modal-description {
+  margin: 3px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 12px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-secondary);
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-500);
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-tertiary);
+}
+
+.settings-tab[aria-selected="true"] {
+  color: var(--color-text-primary);
+  background: var(--color-surface-tertiary);
+  box-shadow: inset 3px 0 var(--color-accent);
+}
+
+.settings-panels {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-panel {
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+.settings-panel-title {
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-700);
+  letter-spacing: 0.09em;
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+}
+
+.settings-panel .settings-body {
+  min-width: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.settings-panel .settings-section {
+  min-width: 0;
+}
+
+.settings-panel .settings-section + .settings-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.settings-panel .settings-option {
+  min-width: 0;
+}
+
+.settings-modal .modal-close {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-modal .account-signout-btn {
+  width: auto;
+  min-width: 120px;
+  min-height: 40px;
+  margin-top: var(--space-6);
+  padding: 10px 16px;
+  border: 1px solid #dc2626;
+  border-radius: var(--border-radius-8);
+  background: #dc2626;
+  color: #fff;
+  font-weight: var(--font-weight-600);
+}
+
+.settings-modal .account-signout-btn:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+.main-content {
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-header {
+  z-index: 1;
+  display: flex;
+  flex: 0 0 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-background);
+}
+
+.main-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-700);
+  letter-spacing: -0.02em;
+}
+
+.main-brand-mark {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+  color: #fff;
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-700);
+}
+
+.main-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.header-icon-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface-tertiary);
+  color: var(--color-text-primary);
+}
+
+.header-avatar-btn {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] {
+  --color-background: #f8fafc;
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f1f5f9;
+  --color-surface-tertiary: #e2e8f0;
+  --color-border: #cbd5e1;
+  --color-border-subtle: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+  --color-accent: #0284c7;
+  --color-accent-light: #0ea5e9;
+  --color-accent-dark: #0369a1;
+  --color-error: #dc2626;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 18px rgba(15, 23, 42, 0.10);
+  --shadow-xl: 0 20px 30px rgba(15, 23, 42, 0.14);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --color-background: #f8fafc;
+    --color-surface-primary: #ffffff;
+    --color-surface-secondary: #f1f5f9;
+    --color-surface-tertiary: #e2e8f0;
+    --color-border: #cbd5e1;
+    --color-border-subtle: #e2e8f0;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-tertiary: #64748b;
+    --color-accent: #0284c7;
+    --color-accent-light: #0ea5e9;
+    --color-accent-dark: #0369a1;
+    --color-error: #dc2626;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 10px 18px rgba(15, 23, 42, 0.10);
+    --shadow-xl: 0 20px 30px rgba(15, 23, 42, 0.14);
+  }
+}
+
+@media (max-width: 600px) {
+  .modal.settings-modal {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    height: 85dvh;
+    max-height: 85dvh;
+  }
+
+  .settings-modal .settings-shell {
+    max-height: 85dvh;
+    border-radius: var(--border-radius-12);
+  }
+
+  .settings-modal .modal-header {
+    padding: 14px 16px;
+  }
+
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-tabs {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+    scrollbar-width: none;
+  }
+
+  .settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-tab {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 38px;
+    padding: 9px 12px;
+    text-align: center;
+  }
+
+  .settings-tab[aria-selected="true"] {
+    box-shadow: inset 0 -3px var(--color-accent);
+  }
+
+  .settings-panel {
+    padding: 18px 16px;
+  }
+
+  .settings-modal .account-signout-btn {
+    width: 100%;
+  }
+
+  .main-header {
+    flex-basis: 56px;
+    padding-inline: 16px;
+  }
+}

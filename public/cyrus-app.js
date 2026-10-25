@@ -62,7 +62,8 @@
     errorClose: $("errorClose"),
     charCount: $("charCount"),
     settingsModal: $("settingsModal"),
-    accountModal: $("accountModal"),
+    themeToggleButton: $("themeToggleButton"),
+    headerAccountButton: $("headerAccountButton"),
     themeSelect: $("themeSelect"),
     fontSizeSelect: $("fontSizeSelect"),
     enterToSendToggle: $("enterToSendToggle"),
@@ -753,12 +754,24 @@
   function applyTheme() {
     const theme = preferences.theme;
     if (theme === "light") {
+      document.documentElement.dataset.theme = "light";
       document.documentElement.style.colorScheme = "light";
     } else if (theme === "dark") {
+      document.documentElement.dataset.theme = "dark";
       document.documentElement.style.colorScheme = "dark";
     } else {
+      document.documentElement.removeAttribute("data-theme");
       document.documentElement.style.colorScheme = "light dark";
     }
+    syncThemeToggle();
+  }
+
+  function syncThemeToggle() {
+    if (!ui.themeToggleButton) return;
+    const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+    const isDark = preferences.theme === "dark" || (preferences.theme === "auto" && !prefersLight);
+    ui.themeToggleButton.setAttribute("aria-pressed", String(isDark));
+    ui.themeToggleButton.setAttribute("aria-label", isDark ? "Switch to light theme" : "Switch to dark theme");
   }
 
   // =========================================================================
@@ -798,12 +811,59 @@
       state.messages = [];
       ui.messagesList.innerHTML = "";
       showWelcomeState();
-      ui.accountModal.close();
+      ui.settingsModal.close();
       showError("Signed out successfully");
     } catch (error) {
       console.error("Sign out error:", error);
       showError("Failed to sign out");
     }
+  }
+
+  function activateSettingsTab(tabName, shouldFocus = false) {
+    const tabs = Array.from(ui.settingsModal.querySelectorAll("[data-settings-tab]"));
+    const selectedTab = tabs.find((tab) => tab.dataset.settingsTab === tabName) || tabs[0];
+    if (!selectedTab) return;
+
+    tabs.forEach((tab) => {
+      const selected = tab === selectedTab;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+
+    ui.settingsModal.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.settingsPanel !== selectedTab.dataset.settingsTab;
+    });
+
+    if (shouldFocus) selectedTab.focus({ preventScroll: true });
+  }
+
+  function openSettingsModal(tabName = "appearance") {
+    activateSettingsTab(tabName);
+    if (!ui.settingsModal.open) ui.settingsModal.showModal();
+    const activeTab = ui.settingsModal.querySelector('[data-settings-tab][aria-selected="true"]');
+    if (activeTab) activeTab.focus({ preventScroll: true });
+    closeSidebar();
+  }
+
+  function initSettingsTabs() {
+    const tabs = Array.from(ui.settingsModal.querySelectorAll("[data-settings-tab]"));
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => {
+        activateSettingsTab(tab.dataset.settingsTab);
+      });
+
+      tab.addEventListener("keydown", (event) => {
+        let nextIndex = index;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (index + 1) % tabs.length;
+        else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") nextIndex = 0;
+        else if (event.key === "End") nextIndex = tabs.length - 1;
+        else return;
+
+        event.preventDefault();
+        activateSettingsTab(tabs[nextIndex].dataset.settingsTab, true);
+      });
+    });
   }
 
   // =========================================================================
@@ -868,12 +928,20 @@
 
     // Settings
     ui.settingsButton.addEventListener("click", () => {
-      ui.settingsModal.showModal();
-      closeSidebar();
+      openSettingsModal("appearance");
     });
 
     ui.themeSelect.addEventListener("change", (e) => {
       preferences.theme = e.target.value;
+      applyTheme();
+      savePreferences();
+    });
+
+    ui.themeToggleButton.addEventListener("click", () => {
+      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+      const currentlyDark = preferences.theme === "dark" || (preferences.theme === "auto" && !prefersLight);
+      preferences.theme = currentlyDark ? "light" : "dark";
+      ui.themeSelect.value = preferences.theme;
       applyTheme();
       savePreferences();
     });
@@ -904,27 +972,25 @@
 
     ui.clearHistoryButton.addEventListener("click", clearHistory);
 
-    const settingsModalClose = ui.settingsModal.querySelector(".modal-close");
+    const settingsModalClose = ui.settingsModal.querySelector("[data-close-settings]");
     settingsModalClose.addEventListener("click", () => ui.settingsModal.close());
 
-    // Account
+    // Sidebar and header account controls open the same modal on the Account tab.
     ui.accountButton.addEventListener("click", () => {
-      ui.accountModal.showModal();
-      closeSidebar();
+      openSettingsModal("account");
+    });
+
+    ui.headerAccountButton.addEventListener("click", () => {
+      openSettingsModal("account");
     });
 
     ui.signOutButton.addEventListener("click", signOut);
 
-    const accountModalClose = ui.accountModal.querySelector(".modal-close");
-    accountModalClose.addEventListener("click", () => ui.accountModal.close());
-
-    // Close modals on backdrop click
-    $$(".modal-backdrop").forEach(backdrop => {
-      backdrop.addEventListener("click", (e) => {
-        const dialog = e.target.closest("dialog");
-        if (dialog) dialog.close();
-      });
+    ui.settingsModal.addEventListener("click", (event) => {
+      if (event.target === ui.settingsModal) ui.settingsModal.close();
     });
+
+    initSettingsTabs();
   }
 
   function closeSidebar() {

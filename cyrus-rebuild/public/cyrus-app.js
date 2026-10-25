@@ -1,21 +1,17 @@
 /** ============================================================================
- * CYRUS - AI CHATBOT
- * Premium AI conversational interface — FULLY UNLOCKED
+ * CYRUS - AI CHATBOT — FULLY UNLOCKED (send-fixed)
  * ========================================================================= */
 
 (() => {
   "use strict";
 
-  const cfg = window.CYRUS_CONFIG || {};
   const $ = (id) => document.getElementById(id);
-  const $$ = (selector) => document.querySelectorAll(selector);
 
   const STORAGE_THEME = "cyrus-theme";
   const STORAGE_FONT_SIZE = "cyrus-font-size";
   const STORAGE_ENTER_TO_SEND = "cyrus-enter-to-send";
   const STORAGE_AUTO_SCROLL = "cyrus-auto-scroll";
   const STORAGE_SYSTEM_INSTRUCTIONS = "cyrus-system-instructions";
-  const STORAGE_DISPLAY_NAME = "cyrus-display-name";
 
   const DEFAULT_PREFERENCES = {
     theme: "auto",
@@ -68,15 +64,16 @@
   let state = {
     currentConversationId: null,
     messages: [],
-    isLoading: false,
     isSending: false,
-    pendingFiles: [],
-    previewUrls: [],
     conversations: [],
     supabaseClient: null,
     currentUser: null,
     abortController: null
   };
+
+  function getCfg() {
+    return window.CYRUS_CONFIG || {};
+  }
 
   async function init() {
     console.log("🤖 Cyrus initializing (FULLY UNLOCKED)...");
@@ -88,34 +85,40 @@
       await authenticateUser();
       await loadConversations();
     } catch (error) {
-      console.warn("Supabase initialization failed:", error);
-      showError("Could not connect to Supabase. Check your configuration.");
+      console.warn("Supabase init warning:", error);
+      // Do NOT block send — local mode still works
     }
     showWelcomeState();
     console.log("✅ Cyrus ready (unlocked)");
   }
 
   async function initSupabase() {
+    const cfg = getCfg();
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-      console.warn("Supabase credentials not configured. Some features will be unavailable.");
+      console.warn("Supabase credentials not configured.");
       return;
     }
-    const supabaseScript = document.createElement("script");
-    supabaseScript.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    return new Promise((resolve, reject) => {
-      supabaseScript.onload = async () => {
+    if (window.supabase && window.supabase.createClient) {
+      state.supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      window.__cyrusSupabaseClient = state.supabaseClient;
+      console.log("✅ Supabase initialized");
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      s.onload = () => {
         try {
-          const { createClient } = window.supabase;
-          state.supabaseClient = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+          state.supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
           window.__cyrusSupabaseClient = state.supabaseClient;
-          console.log("✅ Supabase initialized (unlocked)");
+          console.log("✅ Supabase initialized");
           resolve();
-        } catch (error) {
-          reject(error);
+        } catch (e) {
+          reject(e);
         }
       };
-      supabaseScript.onerror = reject;
-      document.head.appendChild(supabaseScript);
+      s.onerror = reject;
+      document.head.appendChild(s);
     });
   }
 
@@ -126,15 +129,16 @@
       if (error) throw error;
       if (data.session) {
         state.currentUser = data.session.user;
-        updateAccountDisplay();
-      } else {
-        const { data: anonData, error: anonError } = await state.supabaseClient.auth.signInAnonymously();
-        if (anonError) throw anonError;
-        state.currentUser = anonData.session.user;
+        return;
       }
+      const { data: anonData, error: anonError } = await state.supabaseClient.auth.signInAnonymously();
+      if (anonError) {
+        console.warn("Anonymous sign-in failed (tables may still work with anon key):", anonError.message);
+        return;
+      }
+      state.currentUser = anonData.session.user;
     } catch (error) {
-      console.error("Authentication error:", error);
-      showError("Authentication failed. Some features may be unavailable.");
+      console.warn("Auth warning:", error.message || error);
     }
   }
 
@@ -150,47 +154,36 @@
       state.conversations = data || [];
       renderConversationsList();
     } catch (error) {
-      console.error("Failed to load conversations:", error);
+      console.warn("loadConversations:", error.message || error);
     }
   }
 
   function renderConversationsList() {
     if (!ui.conversationsList) return;
     ui.conversationsList.innerHTML = "";
-    if (state.conversations.length === 0) {
+    if (!state.conversations.length) {
       ui.conversationsList.innerHTML = '<div class="empty-state">No conversations yet</div>';
       return;
     }
-    const grouped = groupConversationsByDate(state.conversations);
-    for (const [dateGroup, conversations] of Object.entries(grouped)) {
-      conversations.forEach(conv => {
-        const item = document.createElement("button");
-        item.className = "conversation-item" + (conv.id === state.currentConversationId ? " active" : "");
-        item.innerHTML = `
-          <div class="conversation-item-title">${escapeHtml(conv.title || "Untitled")}</div>
-          <div class="conversation-item-date">${formatDate(conv.updated_at)}</div>
-        `;
-        item.addEventListener("click", () => selectConversation(conv.id));
-        ui.conversationsList.appendChild(item);
-      });
-    }
-  }
-
-  function groupConversationsByDate(conversations) {
-    const groups = {};
-    conversations.forEach(conv => {
-      const date = new Date(conv.updated_at);
-      const dateKey = date.toLocaleDateString();
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(conv);
+    state.conversations.forEach((conv) => {
+      const item = document.createElement("button");
+      item.className = "conversation-item" + (conv.id === state.currentConversationId ? " active" : "");
+      item.innerHTML =
+        '<div class="conversation-item-title">' +
+        escapeHtml(conv.title || "Untitled") +
+        '</div><div class="conversation-item-date">' +
+        formatDate(conv.updated_at) +
+        "</div>";
+      item.addEventListener("click", () => selectConversation(conv.id));
+      ui.conversationsList.appendChild(item);
     });
-    return groups;
   }
 
   async function selectConversation(conversationId) {
     state.currentConversationId = conversationId;
     state.messages = [];
     if (ui.messagesList) ui.messagesList.innerHTML = "";
+    if (!state.supabaseClient) return;
     try {
       const { data, error } = await state.supabaseClient
         .from("messages")
@@ -204,14 +197,16 @@
       renderConversationsList();
       scrollToBottom();
     } catch (error) {
-      console.error("Failed to load messages:", error);
-      showError("Could not load conversation");
+      console.warn("selectConversation:", error.message || error);
     }
   }
 
   async function startNewConversation() {
+    // Soft — if DB unavailable we just use local session
     if (!state.supabaseClient || !state.currentUser) {
-      showError("Not authenticated");
+      state.currentConversationId = "local-" + Date.now();
+      state.messages = [];
+      if (ui.messagesList) ui.messagesList.innerHTML = "";
       return;
     }
     try {
@@ -225,45 +220,49 @@
       state.messages = [];
       if (ui.messagesList) ui.messagesList.innerHTML = "";
       await loadConversations();
-      showWelcomeState();
     } catch (error) {
-      console.error("Failed to create conversation:", error);
-      showError("Could not create new conversation");
+      console.warn("startNewConversation fallback to local:", error.message || error);
+      state.currentConversationId = "local-" + Date.now();
+      state.messages = [];
     }
   }
 
   async function sendMessage(text) {
-    if (!text.trim()) return;
+    if (!text || !text.trim()) return;
     if (state.isSending) return;
-
-    // FULL UNLOCK: always attempt the Edge Function when Supabase is present.
-    // Provider availability is decided server-side.
 
     state.isSending = true;
     if (ui.sendButton) ui.sendButton.hidden = true;
     if (ui.stopButton) ui.stopButton.hidden = false;
     state.abortController = new AbortController();
+    hideError();
 
     try {
       if (!state.currentConversationId) {
         await startNewConversation();
       }
 
-      if (state.supabaseClient && state.currentUser) {
-        const { data: userMsgData, error: userMsgError } = await state.supabaseClient
-          .from("messages")
-          .insert([{
-            conversation_id: state.currentConversationId,
-            user_id: state.currentUser.id,
-            role: "user",
-            content: text
-          }])
-          .select("*")
-          .single();
-        if (userMsgError) throw userMsgError;
-        state.messages.push(userMsgData);
+      // Save user message (best-effort)
+      const userMsg = { role: "user", content: text.trim() };
+      if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
+        try {
+          const { data, error } = await state.supabaseClient
+            .from("messages")
+            .insert([{
+              conversation_id: state.currentConversationId,
+              user_id: state.currentUser.id,
+              role: "user",
+              content: text.trim()
+            }])
+            .select("*")
+            .single();
+          if (!error && data) state.messages.push(data);
+          else state.messages.push(userMsg);
+        } catch (_) {
+          state.messages.push(userMsg);
+        }
       } else {
-        state.messages.push({ role: "user", content: text });
+        state.messages.push(userMsg);
       }
 
       renderMessages();
@@ -275,25 +274,32 @@
       addLoadingMessage();
       scrollToBottom();
 
-      const response = await callAIProvider(text);
+      const response = await callAIProvider(text.trim());
 
       if (response) {
-        if (state.supabaseClient && state.currentUser) {
-          const { data: assistantMsgData, error: assistantMsgError } = await state.supabaseClient
-            .from("messages")
-            .insert([{
-              conversation_id: state.currentConversationId,
-              user_id: state.currentUser.id,
-              role: "assistant",
-              content: response
-            }])
-            .select("*")
-            .single();
-          if (assistantMsgError) throw assistantMsgError;
-          state.messages.push(assistantMsgData);
+        const assistantMsg = { role: "assistant", content: response };
+        if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
+          try {
+            const { data, error } = await state.supabaseClient
+              .from("messages")
+              .insert([{
+                conversation_id: state.currentConversationId,
+                user_id: state.currentUser.id,
+                role: "assistant",
+                content: response
+              }])
+              .select("*")
+              .single();
+            if (!error && data) state.messages.push(data);
+            else state.messages.push(assistantMsg);
+          } catch (_) {
+            state.messages.push(assistantMsg);
+          }
         } else {
-          state.messages.push({ role: "assistant", content: response });
+          state.messages.push(assistantMsg);
         }
+      } else {
+        showError("No response from AI. Check Edge Function deploy + provider keys.");
       }
 
       renderMessages();
@@ -301,7 +307,7 @@
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Message send error:", error);
-        showError("Failed to send message. Please try again.");
+        showError(error.message || "Failed to send message. Please try again.");
       }
     } finally {
       state.isSending = false;
@@ -314,19 +320,10 @@
 
   function addLoadingMessage() {
     if (!ui.messagesList) return;
-    const loadingHTML = `
-      <div class="message assistant">
-        <div class="message-avatar">C</div>
-        <div class="message-content">
-          <div class="message-text message-loading">
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-          </div>
-        </div>
-      </div>
-    `;
-    ui.messagesList.insertAdjacentHTML("beforeend", loadingHTML);
+    ui.messagesList.insertAdjacentHTML(
+      "beforeend",
+      '<div class="message assistant"><div class="message-avatar">C</div><div class="message-content"><div class="message-text message-loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div></div></div>'
+    );
   }
 
   function removeLoadingMessage() {
@@ -338,13 +335,16 @@
   function renderMessages() {
     if (!ui.messagesList) return;
     ui.messagesList.innerHTML = "";
-    state.messages.forEach(msg => {
-      const messageEl = document.createElement("div");
-      messageEl.className = `message ${msg.role}`;
-      const avatar = `<div class="message-avatar">${msg.role === "user" ? "You" : "C"}</div>`;
-      const content = `<div class="message-content"><div class="message-text">${formatMessageContent(msg.content)}</div></div>`;
-      messageEl.innerHTML = avatar + content;
-      ui.messagesList.appendChild(messageEl);
+    state.messages.forEach((msg) => {
+      const el = document.createElement("div");
+      el.className = "message " + msg.role;
+      el.innerHTML =
+        '<div class="message-avatar">' +
+        (msg.role === "user" ? "You" : "C") +
+        '</div><div class="message-content"><div class="message-text">' +
+        formatMessageContent(msg.content) +
+        "</div></div>";
+      ui.messagesList.appendChild(el);
     });
   }
 
@@ -357,52 +357,45 @@
     return html;
   }
 
-  // =========================================================================
-  // AI PROVIDER INTEGRATION — FULLY UNLOCKED
-  // =========================================================================
-  function isAIProviderConfigured() {
-    const cfg = window.CYRUS_CONFIG || {};
-    if (cfg.supabaseUrl && cfg.supabaseAnonKey) return true;
-    if (window.CyrusProvider && window.CyrusProvider.getAvailable()) return true;
-    return false;
-  }
-
   async function callAIProvider(userMessage) {
+    // Prefer unlocked adapter
     if (window.CyrusProvider && typeof window.CyrusProvider.call === "function") {
       const history = state.messages
-        .filter(m => m.role === "user" || m.role === "assistant")
-        .map(m => ({ role: m.role, content: m.content }));
-      const systemInstructions = preferences.systemInstructions || "";
-      return await window.CyrusProvider.call(userMessage, history, systemInstructions);
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      return await window.CyrusProvider.call(
+        userMessage,
+        history,
+        preferences.systemInstructions || ""
+      );
     }
 
-    const localCfg = window.CYRUS_CONFIG || {};
-    if (!localCfg.supabaseUrl || !localCfg.supabaseAnonKey) {
-      showError("Supabase config missing. Set supabaseUrl + supabaseAnonKey in public/config.js");
-      return null;
+    const cfg = getCfg();
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      throw new Error("Supabase config missing");
     }
 
-    let authHeader = "Bearer " + localCfg.supabaseAnonKey;
+    let authHeader = "Bearer " + cfg.supabaseAnonKey;
     try {
       if (state.supabaseClient) {
         const { data } = await state.supabaseClient.auth.getSession();
-        if (data?.session?.access_token) {
+        if (data && data.session && data.session.access_token) {
           authHeader = "Bearer " + data.session.access_token;
         }
       }
     } catch (_) {}
 
-    const url = localCfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/mahi-ai-chat";
+    const url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/mahi-ai-chat";
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": authHeader,
-        "apikey": localCfg.supabaseAnonKey
+        Authorization: authHeader,
+        apikey: cfg.supabaseAnonKey
       },
       body: JSON.stringify({
         message: userMessage,
-        history: state.messages.map(m => ({ role: m.role, content: m.content })),
+        history: state.messages.map((m) => ({ role: m.role, content: m.content })),
         system_instructions: preferences.systemInstructions || undefined
       }),
       signal: state.abortController ? state.abortController.signal : undefined
@@ -410,7 +403,7 @@
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      throw new Error("Edge Function " + response.status + ": " + errText.slice(0, 200));
+      throw new Error("Edge Function " + response.status + ": " + errText.slice(0, 250));
     }
 
     const data = await response.json();
@@ -463,23 +456,11 @@
     if (ui.systemInstructions) ui.systemInstructions.value = systemInstructions;
   }
 
-  function savePreferences() {
-    localStorage.setItem(STORAGE_THEME, preferences.theme);
-    localStorage.setItem(STORAGE_FONT_SIZE, preferences.fontSize);
-    localStorage.setItem(STORAGE_ENTER_TO_SEND, preferences.enterToSend.toString());
-    localStorage.setItem(STORAGE_AUTO_SCROLL, preferences.autoScroll.toString());
-    localStorage.setItem(STORAGE_SYSTEM_INSTRUCTIONS, preferences.systemInstructions);
-  }
-
   function applyTheme() {
     const theme = preferences.theme;
-    if (theme === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
-    } else if (theme === "dark") {
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-    }
+    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+    else if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    else document.documentElement.removeAttribute("data-theme");
   }
 
   function initEventListeners() {
@@ -498,11 +479,23 @@
         }
       });
     }
-    if (ui.newChatButton) ui.newChatButton.addEventListener("click", () => startNewConversation());
-    if (ui.stopButton) ui.stopButton.addEventListener("click", () => {
-      if (state.abortController) state.abortController.abort();
-    });
+    if (ui.newChatButton) {
+      ui.newChatButton.addEventListener("click", () => startNewConversation());
+    }
+    if (ui.stopButton) {
+      ui.stopButton.addEventListener("click", () => {
+        if (state.abortController) state.abortController.abort();
+      });
+    }
     if (ui.errorClose) ui.errorClose.addEventListener("click", hideError);
+
+    // Suggested prompts
+    document.querySelectorAll(".prompt-suggestion").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const prompt = btn.getAttribute("data-prompt");
+        if (prompt) sendMessage(prompt);
+      });
+    });
   }
 
   function escapeHtml(str) {
@@ -521,9 +514,6 @@
     }
   }
 
-  function updateAccountDisplay() {}
-
-  // Boot
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

@@ -3,9 +3,8 @@
 
 window.CYRUS_CONFIG = {
   supabaseUrl: "https://rpjqghibyzfldqlrxfna.supabase.co",
-  supabaseAnonKey: "sb_publishable_yHJ0gMPyT2zFJShlkLxb6A_07mOQv3-",
-  // Legacy anon JWT also available if needed:
-  // supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwanFnaGlieXpmbGRxbHJ4Zm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5MTY1NDcsImV4cCI6MjEwODQ5MjU0N30.qdN2SUjwTRxjlIqQd81xDCrNRRaKqA61I4wIjGbusZs",
+  // Legacy anon JWT — most compatible with Edge Functions + supabase-js
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwanFnaGlieXpmbGRxbHJ4Zm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5MTY1NDcsImV4cCI6MjEwODQ5MjU0N30.qdN2SUjwTRxjlIqQd81xDCrNRRaKqA61I4wIjGbusZs",
   features: {
     conversations: true,
     memory: true,

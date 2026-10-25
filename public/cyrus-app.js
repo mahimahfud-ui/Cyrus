@@ -540,31 +540,15 @@
   // AI PROVIDER INTEGRATION
   // =========================================================================
   function isAIProviderConfigured() {
-    return Boolean(window.CyrusProvider && window.CyrusProvider.getAvailable() !== null && state.supabaseClient && state.currentUser);
+    // No provider is configured in this fresh deployment.
+    if (!window.CyrusProvider) return false;
+    return window.CyrusProvider.getAvailable() !== null;
   }
 
-  async function callAIProvider(userMessage) {
-    if (!window.CyrusProvider || !state.supabaseClient) {
-      showError("Cyrus could not connect to its AI service. Reload the page and try again.");
-      return null;
-    }
-    try {
-      const history = state.messages
-        .filter(m => ["user", "assistant"].includes(m.role) && typeof m.content === "string")
-        .map(m => ({ role: m.role, content: m.content }));
-      const { data, error } = await state.supabaseClient.auth.getSession();
-      if (error) throw error;
-      const accessToken = data && data.session && data.session.access_token;
-      if (!accessToken) throw new Error("Your guest session expired. Reload Cyrus and try again.");
-      return await window.CyrusProvider.call(
-        userMessage, history, preferences.systemInstructions, accessToken,
-        state.abortController ? state.abortController.signal : undefined
-      );
-    } catch (error) {
-      console.error("AI request failed:", error && error.name ? error.name : "Error");
-      if (error && error.name !== "AbortError") showError(error.message || "Cyrus could not complete this request.");
-      return null;
-    }
+  async function callAIProvider(_userMessage) {
+    // Deliberately disabled until the owner explicitly configures a provider.
+    showError("No AI provider is connected yet. Cyrus is running in fresh, unconfigured mode.");
+    return null;
   }
 
   // =========================================================================

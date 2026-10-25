@@ -63,6 +63,7 @@ function loadEntry(filePath, stat, done) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
   let pathname;
   try {
     pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
@@ -72,13 +73,6 @@ const server = http.createServer((req, res) => {
   // Reject path bytes that can make filesystem APIs throw synchronously or that
   // proxies and Node may interpret differently.
   if (pathname.includes("\0") || pathname.includes("\\")) return send(res, 400, "Bad request");
-  // AI deliberately disconnected: this endpoint is fail-closed and never forwards requests.
-  if (pathname === "/api/chat") {
-    return send(res, 503, JSON.stringify({
-      error: "No AI provider is connected to Cyrus. Chat remains disabled until a provider is configured."
-    }), "application/json; charset=utf-8");
-  }
-  if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
   if (pathname === "/healthz") {
     if (req.method === "HEAD") {
       res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
@@ -124,4 +118,4 @@ server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 server.maxHeadersCount = 100;
 
-server.listen(PORT, "0.0.0.0", () => console.log("Cyrus web server listening on port " + PORT));
+server.listen(PORT, "0.0.0.0", () => console.log("MahiCloud web server listening on port " + PORT));

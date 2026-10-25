@@ -144,13 +144,6 @@ Ordinary questions do not trigger web search. If no configured retrieval-capable
 - These built-in tools depend on the selected Gemini model, API access, quota, and service terms. When retrieval is not available, the assistant must not claim a live search or execution occurred.
 
 
-## Cyrus chat runtime
+## Provider status
 
-The Render deployment serves the ZIP-provided Cyrus interface and uses the same-origin `POST /api/chat` proxy to call the existing authenticated Supabase `mahi-ai-chat` Edge Function. Supabase Auth supplies a user session; provider credentials remain server-side in Supabase Edge Function Secrets and are never exposed to the browser. Conversations and messages continue to use the existing Supabase tables. Render auto-deploys commits pushed to `main`.
-
-
-## AI provider status: deliberately disconnected
-
-Cyrus is currently in a fresh, unconfigured provider state. The browser adapter always reports no available provider; the chat UI refuses to send a prompt, and the Node server returns HTTP 503 for `POST /api/chat` without forwarding the request anywhere. This server contains no AI-provider API key configuration or upstream AI fetch path.
-
-The shared Supabase project and its existing `mahi-ai-chat` Edge Function are intentionally left untouched because other applications may use them. Cyrus's server no longer calls that function, so any provider keys or model settings that may exist in the shared Supabase project do not connect to this Cyrus deployment. Supabase Auth and conversation storage can remain configured independently of an AI provider.
+Cyrus is intentionally deployed in fresh mode: no AI provider is connected, no provider API keys are configured in Render, Supabase client configuration is blank, and the server has no AI proxy route. The Grok/OpenAI entries in `public/provider-adapter.js` are disabled placeholders (`enabled: false`, `apiKey: null`) only. Chat replies remain disabled until the owner intentionally configures and tests a provider.

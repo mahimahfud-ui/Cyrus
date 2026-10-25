@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0a0a0a">
-  <title>Cyrus - AI Conversations</title>
+  <title>Cyrus — AI workspace</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%230ea5e9' width='32' height='32' rx='6'/><text x='16' y='22' font-size='20' font-weight='700' fill='white' text-anchor='middle' font-family='monospace'>C</text></svg>">
-  <link rel="stylesheet" href="/styles-cyrus.css">
+  <link rel="stylesheet" href="./styles-cyrus.css">
   <script>
     window.CYRUS_CONFIG = {
       supabaseUrl: new URL(window.location.href).searchParams.get("supabaseUrl") || localStorage.getItem("cyrus-supabase-url") || "",
@@ -151,7 +151,7 @@
             <div class="input-actions">
               <button id="attachButton" class="action-btn" type="button" aria-label="Attach file">
                 <svg class="icon-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 0 19.8 4.3M22 12.5a10 10 0 0 0-19.8-4.2"/>
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 8.49 8.49l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                 </svg>
               </button>
               <button id="sendButton" class="action-btn send-btn" type="submit" aria-label="Send message">
@@ -167,7 +167,7 @@
               </button>
             </div>
           </div>
-          <input type="file" id="fileInput" multiple hidden>
+          <input type="file" id="fileInput" multiple accept="image/*,application/pdf,text/*,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.java,.sql,.xml,.yaml,.yml,.toml,.log,.zip" hidden>
           <div id="attachmentList" class="attachment-list"></div>
           <div id="charCount" class="char-count" hidden></div>
         </form>
@@ -262,8 +262,8 @@
     </div>
   </dialog>
 
-  <script src="/config.js"></script>
-  <script src="/provider-adapter.js"></script>
-  <script src="/cyrus-app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./provider-adapter.js"></script>
+  <script src="./cyrus-app.js"></script>
 </body>
 </html>

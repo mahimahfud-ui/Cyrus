@@ -1,18 +1,18 @@
-/* Cyrus is intentionally shipped with no AI provider connected.
-   Clear any old local Supabase values so this deployment starts fresh.
-   Provider keys must never be stored in browser code. */
-try {
-  localStorage.removeItem("cyrus-supabase-url");
-  localStorage.removeItem("cyrus-supabase-anon-key");
-} catch (_) {}
+/* Cyrus — FULLY UNLOCKED config.
+   Fill in your Supabase project URL + anon key below.
+   Provider API keys must stay in Supabase Edge Function secrets only. */
 
 window.CYRUS_CONFIG = {
+  // Example (replace with your real values):
+  // supabaseUrl: "https://xxxxxxxx.supabase.co",
+  // supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   supabaseUrl: "",
   supabaseAnonKey: "",
   features: {
-    conversations: false,
-    memory: false,
-    imageGeneration: false,
-    voiceInput: false
-  }
+    conversations: true,
+    memory: true,
+    imageGeneration: true,   // still gated by ENABLE_PAID_IMAGE_GENERATION on server
+    voiceInput: true
+  },
+  unlocked: true
 };

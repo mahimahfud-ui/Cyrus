@@ -180,7 +180,7 @@
 
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .select("id, title, created_at, updated_at")
         .eq("user_id", state.currentUser.id)
         .order("updated_at", { ascending: false });
@@ -268,7 +268,7 @@
     
     try {
       const { data, error } = await state.supabaseClient
-        .from("messages")
+        .from("mahi_ai_messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
@@ -294,7 +294,7 @@
 
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .insert([{
           user_id: state.currentUser.id,
           title: "New Conversation"
@@ -321,7 +321,7 @@
       if (!confirm("Delete this conversation? This action cannot be undone.")) return;
       try {
         const { error } = await state.supabaseClient
-          .from("conversations")
+          .from("mahi_ai_conversations")
           .delete()
           .eq("id", conversationId);
 
@@ -344,7 +344,7 @@
 
       try {
         const { error } = await state.supabaseClient
-          .from("conversations")
+          .from("mahi_ai_conversations")
           .update({ title: newTitle })
           .eq("id", conversationId);
 
@@ -360,60 +360,166 @@
   // =========================================================================
   // MESSAGING
   // =========================================================================
+  const MAX_ATTACHMENT_FILES = 20;
+  const MAX_ATTACHMENT_FILE_BYTES = 25 * 1024 * 1024;
+  const MAX_ATTACHMENT_TOTAL_BYTES = 100 * 1024 * 1024;
+
+  function formatAttachmentSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function handleFileSelection(event) {
+    const selected = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!selected.length) return;
+    let totalBytes = state.pendingFiles.reduce((sum, item) => sum + item.file.size, 0);
+    for (const file of selected) {
+      if (state.pendingFiles.length >= MAX_ATTACHMENT_FILES) {
+        showError("You can attach up to 20 files to one message.");
+        break;
+      }
+      if (file.size > MAX_ATTACHMENT_FILE_BYTES) {
+        showError('"' + file.name + '" is larger than 25 MB. Choose a smaller file.');
+        continue;
+      }
+      if (totalBytes + file.size > MAX_ATTACHMENT_TOTAL_BYTES) {
+        showError("Attachments must total 100 MB or less.");
+        continue;
+      }
+      state.pendingFiles.push({ file, storagePath: "" });
+      totalBytes += file.size;
+    }
+    renderAttachmentList();
+  }
+
+  function renderAttachmentList() {
+    if (!ui.attachmentList) return;
+    ui.attachmentList.innerHTML = state.pendingFiles.map((item, index) => {
+      const name = escapeHtml(item.file.name);
+      return '<div class="attachment-item">' +
+        '<span class="attachment-name" title="' + name + '">' + name + '</span>' +
+        '<span class="attachment-size">' + formatAttachmentSize(item.file.size) + '</span>' +
+        '<button class="attachment-remove" type="button" data-remove-attachment="' + index + '"' +
+        ' aria-label="Remove ' + name + '"' + (state.isSending ? ' disabled' : '') + '>×</button>' +
+        '</div>';
+    }).join("");
+    ui.attachmentList.querySelectorAll("[data-remove-attachment]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (state.isSending) return;
+        void removePendingFile(Number(button.getAttribute("data-remove-attachment")));
+      });
+    });
+  }
+
+  async function removePendingFile(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= state.pendingFiles.length) return;
+    const [item] = state.pendingFiles.splice(index, 1);
+    renderAttachmentList();
+    if (item.storagePath && state.supabaseClient) {
+      try {
+        const { error } = await state.supabaseClient.storage.from("mahi-ai-attachments").remove([item.storagePath]);
+        if (error) console.warn("Could not remove unused attachment:", error.message);
+      } catch (_) {
+        console.warn("Could not remove unused attachment.");
+      }
+    }
+  }
+
+  async function uploadPendingFiles() {
+    if (!state.pendingFiles.length) return [];
+    if (!state.supabaseClient || !state.currentUser) throw new Error("Your session is not ready. Reload Cyrus and try again.");
+    const bucket = state.supabaseClient.storage.from("mahi-ai-attachments");
+    const uploaded = [];
+    for (const item of state.pendingFiles) {
+      if (!item.storagePath) {
+        const safeName = item.file.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-120) || "attachment";
+        const randomId = window.crypto && typeof window.crypto.randomUUID === "function"
+          ? window.crypto.randomUUID()
+          : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+        const path = state.currentUser.id + "/" + randomId + "-" + safeName;
+        const { error } = await bucket.upload(path, item.file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: item.file.type || "application/octet-stream"
+        });
+        if (error) throw new Error('Could not upload "' + item.file.name + '": ' + (error.message || "storage request failed."));
+        item.storagePath = path;
+      }
+      uploaded.push({
+        path: item.storagePath,
+        name: item.file.name,
+        mime_type: item.file.type || "application/octet-stream",
+        size: item.file.size
+      });
+    }
+    return uploaded;
+  }
+
+  async function deleteStoredAttachments(attachments) {
+    const paths = (Array.isArray(attachments) ? attachments : []).map((item) => item && item.path).filter(Boolean);
+    if (!paths.length || !state.supabaseClient) return;
+    try {
+      const { error } = await state.supabaseClient.storage.from("mahi-ai-attachments").remove(paths);
+      if (error) console.warn("Attachment cleanup failed:", error.message);
+    } catch (_) {
+      console.warn("Attachment cleanup failed.");
+    }
+  }
+
   async function sendMessage(text) {
-    if (!text.trim()) return;
+    const typedText = String(text || "").trim();
+    const selectedFiles = state.pendingFiles.slice();
+    if (!typedText && !selectedFiles.length) return;
     if (state.isSending) return;
-    
-    // Check if AI provider is configured
-    const hasProvider = isAIProviderConfigured();
-    if (!hasProvider) {
-      showError("No AI provider is connected to Cyrus. It is intentionally fresh and unconfigured.");
+    const promptText = typedText || (selectedFiles.length === 1
+      ? "Please analyze the attached file: " + selectedFiles[0].file.name
+      : "Please analyze the " + selectedFiles.length + " attached files.");
+    if (!isAIProviderConfigured()) {
+      showError("Cyrus could not connect to its AI service. Check the Supabase connection and provider configuration.");
       return;
     }
-
     state.isSending = true;
     ui.sendButton.hidden = true;
     ui.stopButton.hidden = false;
+    if (ui.attachButton) ui.attachButton.disabled = true;
     state.abortController = new AbortController();
-
+    let attachmentRefs = [];
     try {
-      // Ensure we have a conversation
-      if (!state.currentConversationId) {
-        await startNewConversation();
-      }
+      if (!state.currentConversationId) await startNewConversation();
+      attachmentRefs = await uploadPendingFiles();
 
-      // Save user message
       const { data: userMsgData, error: userMsgError } = await state.supabaseClient
-        .from("messages")
+        .from("mahi_ai_messages")
         .insert([{
           conversation_id: state.currentConversationId,
           user_id: state.currentUser.id,
           role: "user",
-          content: text
+          content: promptText
         }])
         .select("*")
         .single();
-
       if (userMsgError) throw userMsgError;
 
+      userMsgData.attachments = selectedFiles.map((item) => ({
+        name: item.file.name,
+        size: item.file.size,
+        mime_type: item.file.type || "application/octet-stream"
+      }));
       state.messages.push(userMsgData);
       renderMessages();
       showChatState();
-      
+
       ui.messageInput.value = "";
       ui.messageInput.style.height = "auto";
-      
-      // Show loading indicator
       addLoadingMessage();
       scrollToBottom();
 
-      // Call AI provider
-      const response = await callAIProvider(text);
-
+      const response = await callAIProvider(promptText, attachmentRefs);
       if (response) {
-        // Save assistant message
         const { data: assistantMsgData, error: assistantMsgError } = await state.supabaseClient
-          .from("messages")
+          .from("mahi_ai_messages")
           .insert([{
             conversation_id: state.currentConversationId,
             user_id: state.currentUser.id,
@@ -422,40 +528,41 @@
           }])
           .select("*")
           .single();
-
         if (assistantMsgError) throw assistantMsgError;
-
         state.messages.push(assistantMsgData);
 
-        // Update conversation title if it's new
-        const conversation = state.conversations.find(c => c.id === state.currentConversationId);
-        if (conversation.title === "New Conversation" || !conversation.title) {
-          const title = generateTitle(text);
+        const conversation = state.conversations.find((item) => item.id === state.currentConversationId);
+        if (!conversation || conversation.title === "New Conversation" || conversation.title === "New chat" || !conversation.title) {
+          const title = generateTitle(promptText);
           await state.supabaseClient
-            .from("conversations")
+            .from("mahi_ai_conversations")
             .update({ title })
             .eq("id", state.currentConversationId);
           await loadConversations();
         }
+        await deleteStoredAttachments(attachmentRefs);
+        state.pendingFiles = [];
+        renderAttachmentList();
       }
 
       renderMessages();
       scrollToBottom();
-      
     } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Message send error:", error);
-        showError("Failed to send message. Please try again.");
+      if (!error || error.name !== "AbortError") {
+        console.error("Message send failed:", error && error.message ? error.message : "Unknown error");
+        showError(error && error.message ? error.message : "Could not send the message. Please try again.");
       }
     } finally {
       state.isSending = false;
       ui.sendButton.hidden = false;
       ui.stopButton.hidden = true;
+      if (ui.attachButton) ui.attachButton.disabled = false;
+      renderAttachmentList();
       removeLoadingMessage();
       ui.messageInput.focus();
+      state.abortController = null;
     }
   }
-
   function addLoadingMessage() {
     const loadingHTML = `
       <div class="message assistant">
@@ -487,7 +594,15 @@
       messageEl.className = `message ${msg.role}`;
       
       const avatar = `<div class="message-avatar">${msg.role === "user" ? "You" : "C"}</div>`;
-      const content = `<div class="message-content"><div class="message-text">${formatMessageContent(msg.content)}</div></div>`;
+      const attachmentItems = Array.isArray(msg.attachments) ? msg.attachments : [];
+      const attachmentMarkup = attachmentItems.length
+        ? '<div class="message-attachments">' + attachmentItems.map((item) =>
+            '<span class="message-attachment" title="' + escapeHtml(item.name || "Attachment") + '">' +
+            '<span aria-hidden="true">📎</span><span class="message-attachment-name">' + escapeHtml(item.name || "Attachment") +
+            '</span><span class="message-attachment-size">' + formatAttachmentSize(Number(item.size) || 0) + '</span></span>'
+          ).join("") + '</div>'
+        : "";
+      const content = `<div class="message-content"><div class="message-text">${formatMessageContent(msg.content)}</div>${attachmentMarkup}</div>`;
       const actions = msg.role === "assistant" ? `
         <div class="message-actions">
           <button class="message-action-btn" title="Copy" data-action="copy" data-content="${escapeHtml(msg.content)}">
@@ -540,17 +655,38 @@
   // AI PROVIDER INTEGRATION
   // =========================================================================
   function isAIProviderConfigured() {
-    // No provider is configured in this fresh deployment.
-    if (!window.CyrusProvider) return false;
-    return window.CyrusProvider.getAvailable() !== null;
+    return Boolean(window.CyrusProvider && window.CyrusProvider.getAvailable() &&
+      state.supabaseClient && state.currentUser);
   }
 
-  async function callAIProvider(_userMessage) {
-    // Deliberately disabled until the owner explicitly configures a provider.
-    showError("No AI provider is connected yet. Cyrus is running in fresh, unconfigured mode.");
-    return null;
+  async function callAIProvider(userMessage, attachments = []) {
+    if (!window.CyrusProvider || !state.supabaseClient) {
+      showError("Cyrus could not connect to its AI service. Reload the page and try again.");
+      return null;
+    }
+    try {
+      const history = state.messages
+        .filter((message) => ["user", "assistant"].includes(message.role) && typeof message.content === "string")
+        .map((message) => ({ role: message.role, content: message.content }));
+      const { data, error } = await state.supabaseClient.auth.getSession();
+      if (error) throw error;
+      const accessToken = data && data.session && data.session.access_token;
+      if (!accessToken) throw new Error("Your guest session expired. Reload Cyrus and try again.");
+      return await window.CyrusProvider.call(
+        userMessage,
+        history,
+        preferences.systemInstructions,
+        accessToken,
+        state.abortController ? state.abortController.signal : undefined,
+        attachments
+      );
+    } catch (error) {
+      if (!error || error.name !== "AbortError") {
+        showError(error && error.message ? error.message : "Cyrus could not complete this request.");
+      }
+      return null;
+    }
   }
-
   // =========================================================================
   // UI STATE MANAGEMENT
   // =========================================================================
@@ -689,14 +825,19 @@
     ui.messageForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const text = ui.messageInput.value.trim();
-      if (text) sendMessage(text);
+      if (text || state.pendingFiles.length) void sendMessage(text);
     });
+
+    ui.attachButton.addEventListener("click", () => {
+      if (!state.isSending) ui.fileInput.click();
+    });
+    ui.fileInput.addEventListener("change", handleFileSelection);
 
     ui.messageInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && preferences.enterToSend) {
         e.preventDefault();
         const text = ui.messageInput.value.trim();
-        if (text) sendMessage(text);
+        if (text || state.pendingFiles.length) void sendMessage(text);
       }
     });
 
@@ -807,7 +948,7 @@
 
     try {
       const { error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .delete()
         .eq("user_id", state.currentUser.id);
 

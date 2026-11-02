@@ -1,5 +1,5 @@
 // Cyrus static server for Node 18+ hosting (including Render).
-// AI requests go directly to the authenticated Supabase Edge Function.
+// AI provider requests remain disabled until Cyrus receives an explicitly configured adapter.
 // Never put AI-provider credentials in this server or in public/ files.
 //
 // Speed upgrades vs. the previous version:

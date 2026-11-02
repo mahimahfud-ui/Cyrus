@@ -1750,3 +1750,19 @@ select:focus-visible {
     padding-inline: 16px;
   }
 }
+
+/* Cyrus preference scaling — applied by the settings font-size control. */
+:root[data-font-size="small"] {
+  --font-size-12: 0.6875rem; --font-size-13: 0.75rem; --font-size-14: 0.8125rem;
+  --font-size-15: 0.875rem; --font-size-16: 0.9375rem; --font-size-18: 1rem;
+  --font-size-20: 1.125rem; --font-size-24: 1.375rem; --font-size-32: 1.75rem;
+}
+:root[data-font-size="large"] {
+  --font-size-12: 0.8125rem; --font-size-13: 0.875rem; --font-size-14: 0.9375rem;
+  --font-size-15: 1rem; --font-size-16: 1.125rem; --font-size-18: 1.25rem;
+  --font-size-20: 1.375rem; --font-size-24: 1.625rem; --font-size-32: 2.25rem;
+}
+.account-content { display: grid; gap: var(--space-3); min-width: 0; }
+.account-detail { display: grid; gap: 4px; min-width: 0; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--border-radius-8); }
+.account-label { color: var(--color-text-secondary); font-size: var(--font-size-12); }
+.account-detail strong { overflow-wrap: anywhere; font-size: var(--font-size-14); font-weight: var(--font-weight-500); }

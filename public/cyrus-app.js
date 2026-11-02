@@ -1,5 +1,5 @@
 /** ============================================================================
- * CYRUS - AI CHATBOT — FULLY UNLOCKED (messages[] body fix)
+ * CYRUS — conversational interface
  * ========================================================================= */
 
 (() => {
@@ -68,7 +68,8 @@
     conversations: [],
     supabaseClient: null,
     currentUser: null,
-    abortController: null
+    abortController: null,
+    searchQuery: ""
   };
 
   function getCfg() {
@@ -76,7 +77,7 @@
   }
 
   async function init() {
-    console.log("🤖 Cyrus initializing (FULLY UNLOCKED)...");
+    console.log("🤖 Cyrus initializing...");
     loadPreferences();
     applyTheme();
     initEventListeners();
@@ -88,7 +89,7 @@
       console.warn("Supabase init warning:", error);
     }
     showWelcomeState();
-    console.log("✅ Cyrus ready (unlocked)");
+    console.log("✅ Cyrus ready");
   }
 
   async function initSupabase() {
@@ -145,7 +146,7 @@
     if (!state.supabaseClient || !state.currentUser) return;
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .select("id, title, created_at, updated_at")
         .eq("user_id", state.currentUser.id)
         .order("updated_at", { ascending: false });
@@ -160,11 +161,16 @@
   function renderConversationsList() {
     if (!ui.conversationsList) return;
     ui.conversationsList.innerHTML = "";
-    if (!state.conversations.length) {
-      ui.conversationsList.innerHTML = '<div class="empty-state">No conversations yet</div>';
+    const query = state.searchQuery.trim().toLowerCase();
+    const visibleConversations = state.conversations.filter((conv) =>
+      String(conv.title || "Untitled").toLowerCase().includes(query)
+    );
+    if (!visibleConversations.length) {
+      ui.conversationsList.innerHTML = '<div class="empty-state">' +
+        (query ? "No matching conversations" : "No conversations yet") + '</div>';
       return;
     }
-    state.conversations.forEach((conv) => {
+    visibleConversations.forEach((conv) => {
       const item = document.createElement("button");
       item.className = "conversation-item" + (conv.id === state.currentConversationId ? " active" : "");
       item.innerHTML =
@@ -185,7 +191,7 @@
     if (!state.supabaseClient) return;
     try {
       const { data, error } = await state.supabaseClient
-        .from("messages")
+        .from("mahi_ai_messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
@@ -195,8 +201,10 @@
       showChatState();
       renderConversationsList();
       scrollToBottom();
+      setSidebarOpen(false);
     } catch (error) {
       console.warn("selectConversation:", error.message || error);
+      showError("Could not open this conversation. Please try again.");
     }
   }
 
@@ -205,11 +213,14 @@
       state.currentConversationId = "local-" + Date.now();
       state.messages = [];
       if (ui.messagesList) ui.messagesList.innerHTML = "";
+      showWelcomeState();
+      renderConversationsList();
+      setSidebarOpen(false);
       return;
     }
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .insert([{ user_id: state.currentUser.id, title: "New Conversation" }])
         .select("id")
         .single();
@@ -218,10 +229,14 @@
       state.messages = [];
       if (ui.messagesList) ui.messagesList.innerHTML = "";
       await loadConversations();
+      showWelcomeState();
+      setSidebarOpen(false);
     } catch (error) {
       console.warn("startNewConversation fallback to local:", error.message || error);
       state.currentConversationId = "local-" + Date.now();
       state.messages = [];
+      showWelcomeState();
+      setSidebarOpen(false);
     }
   }
 
@@ -240,11 +255,12 @@
         await startNewConversation();
       }
 
+      const isFirstMessage = state.messages.length === 0;
       const userMsg = { role: "user", content: text.trim() };
       if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
         try {
           const { data, error } = await state.supabaseClient
-            .from("messages")
+            .from("mahi_ai_messages")
             .insert([{
               conversation_id: state.currentConversationId,
               user_id: state.currentUser.id,
@@ -260,6 +276,21 @@
         }
       } else {
         state.messages.push(userMsg);
+      }
+
+      if (isFirstMessage && state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
+        const title = text.trim().replace(/\\s+/g, " ").slice(0, 60);
+        const { error: titleError } = await state.supabaseClient
+          .from("mahi_ai_conversations")
+          .update({ title, updated_at: new Date().toISOString() })
+          .eq("id", state.currentConversationId)
+          .eq("user_id", state.currentUser.id);
+        if (titleError) console.warn("Conversation title update:", titleError.message || titleError);
+        else {
+          const conversation = state.conversations.find((item) => item.id === state.currentConversationId);
+          if (conversation) conversation.title = title;
+          renderConversationsList();
+        }
       }
 
       renderMessages();
@@ -284,7 +315,7 @@
         if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
           try {
             const { data, error } = await state.supabaseClient
-              .from("messages")
+              .from("mahi_ai_messages")
               .insert([{
                 conversation_id: state.currentConversationId,
                 user_id: state.currentUser.id,
@@ -302,7 +333,7 @@
           state.messages.push(assistantMsg);
         }
       } else {
-        showError("No response from AI. Check Edge Function deploy + provider keys.");
+        showError("Cyrus did not receive a response. Check the AI provider setup.");
       }
 
       renderMessages();
@@ -340,10 +371,11 @@
     ui.messagesList.innerHTML = "";
     state.messages.forEach((msg) => {
       const el = document.createElement("div");
-      el.className = "message " + msg.role;
+      const role = msg.role === "user" ? "user" : "assistant";
+      el.className = "message " + role;
       el.innerHTML =
         '<div class="message-avatar">' +
-        (msg.role === "user" ? "You" : "C") +
+        (role === "user" ? "You" : "C") +
         '</div><div class="message-content"><div class="message-text">' +
         formatMessageContent(msg.content) +
         "</div></div>";
@@ -361,102 +393,17 @@
   }
 
 
-  async function readEdgeResponse(response) {
-    const raw = await response.text();
-    const contentType = (response.headers && response.headers.get("content-type") || "").toLowerCase();
-    if (contentType.includes("text/event-stream") || /^\s*(?:event:[^\n]*\n\s*)?data:/m.test(raw)) {
-      let answer = "";
-      const blocks = raw.replace(/\r\n/g, "\n").split("\n\n");
-      for (const block of blocks) {
-        const dataLines = block.split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trim());
-        if (!dataLines.length) continue;
-        const payload = dataLines.join("\n").trim();
-        if (!payload || payload === "[DONE]") break;
-        let event;
-        try {
-          event = JSON.parse(payload);
-        } catch (_) {
-          throw new Error("The AI service sent malformed streaming data. Please retry.");
-        }
-        if (event.type === "delta" && typeof event.text === "string") answer += event.text;
-        else if (event.type === "reset") answer = "";
-        else if (event.type === "error") throw new Error(event.message || "The AI service could not complete this request.");
-        else if (event.type === "done") break;
-      }
-      if (!answer.trim()) throw new Error("The AI service returned an empty response.");
-      return answer.trim();
-    }
-
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (_) {
-      throw new Error("The AI service returned an unexpected response. Please retry.");
-    }
-    if (data && typeof data.error === "string" && data.error.trim()) throw new Error(data.error);
-    return data && (data.reply || data.answer || data.response || data.text || data.message || data.content) || null;
-  }
-
   async function callAIProvider(userMessage, historyForApi) {
-    if (window.CyrusProvider && typeof window.CyrusProvider.call === "function") {
-      return await window.CyrusProvider.call(
-        userMessage,
-        historyForApi || [],
-        preferences.systemInstructions || ""
-      );
+    if (!window.CyrusProvider || typeof window.CyrusProvider.call !== "function") {
+      throw new Error("AI setup is pending. Cyrus is not connected to an AI provider yet.");
     }
-
-    // Fallback — same messages[] contract as Edge Function
-    const cfg = getCfg();
-    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-      throw new Error("Supabase config missing");
-    }
-
-    let authHeader = "Bearer " + cfg.supabaseAnonKey;
-    try {
-      if (state.supabaseClient) {
-        const { data } = await state.supabaseClient.auth.getSession();
-        if (data && data.session && data.session.access_token) {
-          authHeader = "Bearer " + data.session.access_token;
-        }
-      }
-    } catch (_) {}
-
-    const prior = (historyForApi || [])
-      .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-      .map((m) => ({ role: m.role, content: String(m.content) }));
-    while (prior.length && prior[prior.length - 1].role === "user") prior.pop();
-    const messages = prior.concat([{ role: "user", content: String(userMessage) }]);
-
-    const url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/mahi-ai-chat";
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-        apikey: cfg.supabaseAnonKey
-      },
-      body: JSON.stringify({
-        messages: messages,
-        custom_instructions: preferences.systemInstructions || undefined,
-        temporary_chat: false
-      }),
-      signal: state.abortController ? state.abortController.signal : undefined
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      throw new Error("Edge Function " + response.status + ": " + errText.slice(0, 250));
-    }
-
-    if (window.CyrusProvider && typeof window.CyrusProvider.parseResponse === "function") {
-      return await window.CyrusProvider.parseResponse(response);
-    }
-    return await readEdgeResponse(response);
+    return await window.CyrusProvider.call(
+      userMessage,
+      historyForApi || [],
+      preferences.systemInstructions || "",
+      state.abortController ? state.abortController.signal : undefined
+    );
   }
-
   function showWelcomeState() {
     if (ui.welcomeContainer) ui.welcomeContainer.hidden = false;
     if (ui.chatMessagesContainer) ui.chatMessagesContainer.hidden = true;
@@ -508,40 +455,201 @@
     if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
     else if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
     else document.documentElement.removeAttribute("data-theme");
+    document.documentElement.setAttribute("data-font-size", preferences.fontSize || "normal");
+    if (ui.themeToggleButton) ui.themeToggleButton.setAttribute("aria-pressed", String(theme === "light"));
+  }
+
+  function setSidebarOpen(open) {
+    const isOpen = Boolean(open);
+    document.body.classList.toggle("sidebar-open", isOpen);
+    if (ui.sidebarScrim) {
+      ui.sidebarScrim.hidden = !isOpen;
+      ui.sidebarScrim.setAttribute("aria-hidden", String(!isOpen));
+    }
+    if (ui.sidebar) ui.sidebar.dataset.state = isOpen ? "open" : "closed";
+    if (ui.sidebarToggle) ui.sidebarToggle.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function setSettingsTab(name) {
+    const tabs = Array.from(document.querySelectorAll("[data-settings-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-settings-panel]"));
+    const selected = tabs.some((tab) => tab.dataset.settingsTab === name) ? name : "appearance";
+    tabs.forEach((tab) => {
+      const active = tab.dataset.settingsTab === selected;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    panels.forEach((panel) => { panel.hidden = panel.dataset.settingsPanel !== selected; });
+  }
+
+  let modalReturnFocus = null;
+
+  function openSettings(tab) {
+    if (!ui.settingsModal) return;
+    modalReturnFocus = document.activeElement;
+    setSettingsTab(tab || "appearance");
+    renderAccountDetails();
+    if (!ui.settingsModal.open) {
+      if (typeof ui.settingsModal.showModal === "function") ui.settingsModal.showModal();
+      else ui.settingsModal.setAttribute("open", "");
+    }
+  }
+
+  function closeSettings() {
+    if (!ui.settingsModal) return;
+    if (ui.settingsModal.open && typeof ui.settingsModal.close === "function") ui.settingsModal.close();
+    else ui.settingsModal.removeAttribute("open");
+  }
+
+  function renderAccountDetails() {
+    if (!ui.accountContent) return;
+    const user = state.currentUser;
+    if (!user) {
+      ui.accountContent.innerHTML = '<div class="account-detail"><span class="account-label">Status</span><strong>Signed out</strong></div>';
+      if (ui.signOutButton) { ui.signOutButton.disabled = true; ui.signOutButton.textContent = "Signed Out"; }
+      return;
+    }
+    const email = user.email || (user.is_anonymous ? "Guest session" : "Email unavailable");
+    ui.accountContent.innerHTML =
+      '<div class="account-detail"><span class="account-label">Account</span><strong>' + escapeHtml(email) + '</strong></div>' +
+      '<div class="account-detail"><span class="account-label">User ID</span><strong class="account-id">' + escapeHtml(user.id || "") + '</strong></div>' +
+      '<div class="account-detail"><span class="account-label">Authentication</span><strong>' +
+      (user.is_anonymous ? "Anonymous session" : "Authenticated") + '</strong></div>';
+    if (ui.signOutButton) { ui.signOutButton.disabled = false; ui.signOutButton.textContent = "Sign Out"; }
+  }
+
+  async function clearConversationHistory() {
+    if (!state.supabaseClient || !state.currentUser) {
+      showError("Conversation history is unavailable while signed out.");
+      return;
+    }
+    if (!window.confirm("Delete all of your Cyrus conversations? This cannot be undone.")) return;
+    try {
+      const userId = state.currentUser.id;
+      // Deleting the owned conversation rows cascades to its messages via the existing FK.
+      const conversationsResult = await state.supabaseClient.from("mahi_ai_conversations").delete().eq("user_id", userId);
+      if (conversationsResult.error) throw conversationsResult.error;
+      state.currentConversationId = null;
+      state.messages = [];
+      state.conversations = [];
+      if (ui.messagesList) ui.messagesList.innerHTML = "";
+      renderConversationsList();
+      showWelcomeState();
+      hideError();
+      closeSettings();
+    } catch (error) {
+      console.error("Clear history error:", error);
+      showError("Could not clear conversation history. Check your account permissions and try again.");
+    }
+  }
+
+  async function signOut() {
+    if (!state.supabaseClient || !state.currentUser) return;
+    try {
+      const { error } = await state.supabaseClient.auth.signOut();
+      if (error) throw error;
+      state.currentUser = null;
+      state.currentConversationId = null;
+      state.messages = [];
+      state.conversations = [];
+      if (ui.messagesList) ui.messagesList.innerHTML = "";
+      renderConversationsList();
+      renderAccountDetails();
+      showWelcomeState();
+      showError("You have signed out. Refresh the page to start a new guest session.");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      showError("Could not sign out. Please try again.");
+    }
+  }
+
+  function persistPreference(key, value) {
+    try { localStorage.setItem(key, String(value)); } catch (_) {}
   }
 
   function initEventListeners() {
-    if (ui.messageForm) {
-      ui.messageForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const text = ui.messageInput ? ui.messageInput.value : "";
-        sendMessage(text);
-      });
-    }
-    if (ui.messageInput) {
-      ui.messageInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey && preferences.enterToSend) {
-          e.preventDefault();
-          sendMessage(ui.messageInput.value);
-        }
-      });
-    }
-    if (ui.newChatButton) {
-      ui.newChatButton.addEventListener("click", () => startNewConversation());
-    }
-    if (ui.stopButton) {
-      ui.stopButton.addEventListener("click", () => {
-        if (state.abortController) state.abortController.abort();
-      });
-    }
+    if (ui.messageForm) ui.messageForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMessage(ui.messageInput ? ui.messageInput.value : "");
+    });
+    if (ui.messageInput) ui.messageInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && preferences.enterToSend) {
+        event.preventDefault();
+        sendMessage(ui.messageInput.value);
+      }
+    });
+    if (ui.newChatButton) ui.newChatButton.addEventListener("click", () => startNewConversation());
+    if (ui.stopButton) ui.stopButton.addEventListener("click", () => {
+      if (state.abortController) state.abortController.abort();
+    });
     if (ui.errorClose) ui.errorClose.addEventListener("click", hideError);
-
-    document.querySelectorAll(".prompt-suggestion").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const prompt = btn.getAttribute("data-prompt");
-        if (prompt) sendMessage(prompt);
+    if (ui.sidebarToggle) ui.sidebarToggle.addEventListener("click", () => setSidebarOpen(!document.body.classList.contains("sidebar-open")));
+    if (ui.sidebarScrim) ui.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
+    if (ui.settingsButton) ui.settingsButton.addEventListener("click", () => openSettings("appearance"));
+    if (ui.accountButton) ui.accountButton.addEventListener("click", () => openSettings("account"));
+    if (ui.headerAccountButton) ui.headerAccountButton.addEventListener("click", () => openSettings("account"));
+    document.querySelectorAll("[data-close-settings]").forEach((button) => button.addEventListener("click", closeSettings));
+    if (ui.settingsModal) {
+      ui.settingsModal.addEventListener("click", (event) => { if (event.target === ui.settingsModal) closeSettings(); });
+      ui.settingsModal.addEventListener("close", () => {
+        if (modalReturnFocus && typeof modalReturnFocus.focus === "function") modalReturnFocus.focus();
+        modalReturnFocus = null;
+      });
+    }
+    document.querySelectorAll("[data-settings-tab]").forEach((tab, index, allTabs) => {
+      tab.addEventListener("click", () => setSettingsTab(tab.dataset.settingsTab));
+      tab.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+        event.preventDefault();
+        const direction = event.key === "ArrowRight" ? 1 : -1;
+        const next = allTabs[(index + direction + allTabs.length) % allTabs.length];
+        setSettingsTab(next.dataset.settingsTab);
+        next.focus();
       });
     });
+    if (ui.conversationSearch) ui.conversationSearch.addEventListener("input", () => {
+      state.searchQuery = ui.conversationSearch.value || "";
+      renderConversationsList();
+    });
+    if (ui.themeSelect) ui.themeSelect.addEventListener("change", () => {
+      preferences.theme = ["auto", "light", "dark"].includes(ui.themeSelect.value) ? ui.themeSelect.value : "auto";
+      persistPreference(STORAGE_THEME, preferences.theme);
+      applyTheme();
+    });
+    if (ui.themeToggleButton) ui.themeToggleButton.addEventListener("click", () => {
+      preferences.theme = preferences.theme === "light" ? "dark" : "light";
+      if (ui.themeSelect) ui.themeSelect.value = preferences.theme;
+      persistPreference(STORAGE_THEME, preferences.theme);
+      applyTheme();
+    });
+    if (ui.fontSizeSelect) ui.fontSizeSelect.addEventListener("change", () => {
+      preferences.fontSize = ["small", "normal", "large"].includes(ui.fontSizeSelect.value) ? ui.fontSizeSelect.value : "normal";
+      persistPreference(STORAGE_FONT_SIZE, preferences.fontSize);
+      applyTheme();
+    });
+    if (ui.enterToSendToggle) ui.enterToSendToggle.addEventListener("change", () => {
+      preferences.enterToSend = ui.enterToSendToggle.checked;
+      persistPreference(STORAGE_ENTER_TO_SEND, preferences.enterToSend);
+    });
+    if (ui.autoScrollToggle) ui.autoScrollToggle.addEventListener("change", () => {
+      preferences.autoScroll = ui.autoScrollToggle.checked;
+      persistPreference(STORAGE_AUTO_SCROLL, preferences.autoScroll);
+    });
+    if (ui.systemInstructions) ui.systemInstructions.addEventListener("input", () => {
+      preferences.systemInstructions = ui.systemInstructions.value;
+      persistPreference(STORAGE_SYSTEM_INSTRUCTIONS, preferences.systemInstructions);
+    });
+    if (ui.clearHistoryButton) ui.clearHistoryButton.addEventListener("click", clearConversationHistory);
+    if (ui.signOutButton) ui.signOutButton.addEventListener("click", signOut);
+    if (ui.attachButton) ui.attachButton.addEventListener("click", () => showError("File attachments are not enabled in this Cyrus build yet."));
+    if (ui.fileInput) ui.fileInput.addEventListener("change", () => { ui.fileInput.value = ""; });
+    document.querySelectorAll(".prompt-suggestion").forEach((button) => button.addEventListener("click", () => {
+      const prompt = button.getAttribute("data-prompt");
+      if (prompt) sendMessage(prompt);
+    }));
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") setSidebarOpen(false); });
+    setSidebarOpen(false);
+    renderAccountDetails();
   }
 
   function escapeHtml(str) {
@@ -553,11 +661,8 @@
   }
 
   function formatDate(iso) {
-    try {
-      return new Date(iso).toLocaleString();
-    } catch (_) {
-      return "";
-    }
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
   }
 
   if (document.readyState === "loading") {

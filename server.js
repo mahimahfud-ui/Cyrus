@@ -1,5 +1,5 @@
-// MahiCloud static server for Node 18+ hosting (including Render).
-// AI requests go directly to the authenticated Supabase Edge Function.
+// Cyrus static server for Node 18+ hosting (including Render).
+// AI provider requests remain disabled until Cyrus receives an explicitly configured adapter.
 // Never put AI-provider credentials in this server or in public/ files.
 //
 // Speed upgrades vs. the previous version:
@@ -118,4 +118,4 @@ server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 server.maxHeadersCount = 100;
 
-server.listen(PORT, "0.0.0.0", () => console.log("MahiCloud web server listening on port " + PORT));
+server.listen(PORT, "0.0.0.0", () => console.log("Cyrus web server listening on port " + PORT));

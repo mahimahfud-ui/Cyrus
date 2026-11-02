@@ -1,1 +1,13 @@
-{ "name": "mahicloud", "version": "1.0.0", "private": true, "scripts": { "start": "node server.js" }, "engines": { "node": ">=18" } }
+{
+  "name": "cyrus",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/cyrus-*.test.cjs",
+    "check": "node --check server.js && node --check public/config.js && node --check public/provider-adapter.js && node --check public/cyrus-app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

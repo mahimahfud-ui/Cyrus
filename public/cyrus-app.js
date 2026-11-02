@@ -255,6 +255,7 @@
         await startNewConversation();
       }
 
+      const isFirstMessage = state.messages.length === 0;
       const userMsg = { role: "user", content: text.trim() };
       if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
         try {
@@ -275,6 +276,21 @@
         }
       } else {
         state.messages.push(userMsg);
+      }
+
+      if (isFirstMessage && state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
+        const title = text.trim().replace(/\\s+/g, " ").slice(0, 60);
+        const { error: titleError } = await state.supabaseClient
+          .from("mahi_ai_conversations")
+          .update({ title, updated_at: new Date().toISOString() })
+          .eq("id", state.currentConversationId)
+          .eq("user_id", state.currentUser.id);
+        if (titleError) console.warn("Conversation title update:", titleError.message || titleError);
+        else {
+          const conversation = state.conversations.find((item) => item.id === state.currentConversationId);
+          if (conversation) conversation.title = title;
+          renderConversationsList();
+        }
       }
 
       renderMessages();
@@ -317,7 +333,7 @@
           state.messages.push(assistantMsg);
         }
       } else {
-        showError("No response from AI. Check Edge Function deploy + provider keys.");
+        showError("Cyrus did not receive a response. Check the AI provider setup.");
       }
 
       renderMessages();

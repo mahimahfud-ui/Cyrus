@@ -1,5 +1,5 @@
 /** ============================================================================
- * CYRUS - AI CHATBOT — FULLY UNLOCKED (messages[] body fix)
+ * CYRUS — conversational interface
  * ========================================================================= */
 
 (() => {
@@ -77,7 +77,7 @@
   }
 
   async function init() {
-    console.log("🤖 Cyrus initializing (FULLY UNLOCKED)...");
+    console.log("🤖 Cyrus initializing...");
     loadPreferences();
     applyTheme();
     initEventListeners();
@@ -89,7 +89,7 @@
       console.warn("Supabase init warning:", error);
     }
     showWelcomeState();
-    console.log("✅ Cyrus ready (unlocked)");
+    console.log("✅ Cyrus ready");
   }
 
   async function initSupabase() {

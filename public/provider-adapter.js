@@ -7,7 +7,14 @@
   "use strict";
   const SETUP_PENDING_MESSAGE = "AI setup is pending. Cyrus is not connected to an AI provider yet.";
   function getAvailableProvider() { return null; }
-  async function callAIProvider() { throw new Error(SETUP_PENDING_MESSAGE); }
+  async function callAIProvider(_userMessage, _history, _systemInstructions, signal) {
+    if (signal && signal.aborted) {
+      const error = new Error("Request stopped.");
+      error.name = "AbortError";
+      throw error;
+    }
+    throw new Error(SETUP_PENDING_MESSAGE);
+  }
   window.CyrusProvider = Object.freeze({
     call: callAIProvider,
     getAvailable: getAvailableProvider,

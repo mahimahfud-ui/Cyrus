@@ -146,7 +146,7 @@
     if (!state.supabaseClient || !state.currentUser) return;
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .select("id, title, created_at, updated_at")
         .eq("user_id", state.currentUser.id)
         .order("updated_at", { ascending: false });
@@ -191,7 +191,7 @@
     if (!state.supabaseClient) return;
     try {
       const { data, error } = await state.supabaseClient
-        .from("messages")
+        .from("mahi_ai_messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
@@ -220,7 +220,7 @@
     }
     try {
       const { data, error } = await state.supabaseClient
-        .from("conversations")
+        .from("mahi_ai_conversations")
         .insert([{ user_id: state.currentUser.id, title: "New Conversation" }])
         .select("id")
         .single();
@@ -259,7 +259,7 @@
       if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
         try {
           const { data, error } = await state.supabaseClient
-            .from("messages")
+            .from("mahi_ai_messages")
             .insert([{
               conversation_id: state.currentConversationId,
               user_id: state.currentUser.id,
@@ -299,7 +299,7 @@
         if (state.supabaseClient && state.currentUser && state.currentConversationId && !String(state.currentConversationId).startsWith("local-")) {
           try {
             const { data, error } = await state.supabaseClient
-              .from("messages")
+              .from("mahi_ai_messages")
               .insert([{
                 conversation_id: state.currentConversationId,
                 user_id: state.currentUser.id,
@@ -510,9 +510,8 @@
     if (!window.confirm("Delete all of your Cyrus conversations? This cannot be undone.")) return;
     try {
       const userId = state.currentUser.id;
-      const messagesResult = await state.supabaseClient.from("messages").delete().eq("user_id", userId);
-      if (messagesResult.error) throw messagesResult.error;
-      const conversationsResult = await state.supabaseClient.from("conversations").delete().eq("user_id", userId);
+      // Deleting the owned conversation rows cascades to its messages via the existing FK.
+      const conversationsResult = await state.supabaseClient.from("mahi_ai_conversations").delete().eq("user_id", userId);
       if (conversationsResult.error) throw conversationsResult.error;
       state.currentConversationId = null;
       state.messages = [];
